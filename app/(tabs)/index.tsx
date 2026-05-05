@@ -2,8 +2,8 @@ import api from '@/src/services/api';
 import { useAppStore } from '@/src/store/useAppStore';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import React from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Avatar, Card, IconButton, Text, useTheme } from 'react-native-paper';
 
 const fetchProgress = async () => {
@@ -59,7 +59,14 @@ const fetchProgress = async () => {
 export default function DashboardScreen() {
   const theme = useTheme();
   const logout = useAppStore(state => state.logout);
-  const { data, isLoading } = useQuery({ queryKey: ['progressToday'], queryFn: fetchProgress });
+  const { data, isLoading, refetch } = useQuery({ queryKey: ['progressToday'], queryFn: fetchProgress });
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
 
   const handleLogout = () => {
     logout();
@@ -74,7 +81,10 @@ export default function DashboardScreen() {
   ];
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <ScrollView 
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.colors.primary]} />}
+    >
       <View style={[styles.header, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
         <View>
           <Text variant="headlineMedium" style={styles.greeting}>Hola, Campeón</Text>
@@ -83,15 +93,17 @@ export default function DashboardScreen() {
         <IconButton icon="logout" onPress={handleLogout} />
       </View>
 
-      {isLoading ? (
+      {isLoading && !refreshing ? (
         <ActivityIndicator animating={true} size="large" style={styles.loader} />
       ) : (
-        <View style={styles.grid}>
+        <View style={styles.list}>
           {metrics.map((m) => (
             <Card key={m.id} style={styles.card} mode="elevated">
               <Card.Title
                 title={m.title}
+                titleVariant="titleLarge"
                 subtitle={m.detail}
+                subtitleVariant="bodyMedium"
                 left={(props) => <Avatar.Icon {...props} icon={m.icon} style={{ backgroundColor: m.color }} />}
               />
             </Card>
@@ -116,14 +128,13 @@ const styles = StyleSheet.create({
   loader: {
     marginTop: 50,
   },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 10,
-    justifyContent: 'space-between',
+  list: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   card: {
-    width: '48%', // Grid de 2 columnas simple
-    marginBottom: 15,
+    width: '100%',
+    marginBottom: 16,
+    borderRadius: 16,
   },
 });

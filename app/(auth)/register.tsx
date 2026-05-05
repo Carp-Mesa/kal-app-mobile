@@ -16,12 +16,13 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       const response = await authService.register(email, password);
-      if (response.token) {
+      if (response && response.token) {
         setSessionToken(response.token);
         router.replace('/(tabs)');
       }
-    } catch (error) {
-      console.error(error);
+    } catch (error: any) {
+      console.log('Error en registro:', error?.response?.data || error.message);
+      alert('Hubo un error al registrarse o el servidor no respondió');
     } finally {
       setLoading(false);
     }

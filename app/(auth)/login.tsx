@@ -16,12 +16,17 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const response = await authService.login(email, password);
-      if (response.token) {
+      // Validamos ambas propiedades por si el backend mandara el token
+      if (response && response.token) {
         setSessionToken(response.token);
         router.replace('/(tabs)');
+      } else {
+        alert('Respuesta inválida del servidor.');
       }
-    } catch (error) {
-      console.error(error);
+    } catch (error: any) {
+      console.log('Error en login:', error?.response?.data || error.message);
+      // Aquí usaríamos un Alert o Snackbar para mostrar "Credenciales incorrectas"
+      alert('Credenciales incorrectas o error de red');
     } finally {
       setLoading(false);
     }

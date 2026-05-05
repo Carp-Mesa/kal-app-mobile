@@ -1,27 +1,70 @@
+import api from '@/src/services/api';
+import { useAppStore } from '@/src/store/useAppStore';
 import { useQuery } from '@tanstack/react-query';
+import { router } from 'expo-router';
 import React from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Avatar, Card, Text, useTheme } from 'react-native-paper';
+import { ActivityIndicator, Avatar, Card, IconButton, Text, useTheme } from 'react-native-paper';
 
 const fetchProgress = async () => {
-  // LLAgará el día en que esto pegue directo al backend:
-  // const { data } = await api.get('/progress/today');
-  // return data;
-  
-  // Mock UI hasta que la API esté lista:
-  return new Promise<any>((resolve) => {
-    setTimeout(() => resolve({
-      water: { value: 3, max: 8, label: '3/8 Vasos' },
-      nutrition: { value: 1800, max: 2000, label: '1800/2000 kcal' },
-      workout: { value: 1, max: 1, label: 'Completado' },
-      sleep: { value: 6, max: 8, label: '6/8 Horas' },
-    }), 800);
-  });
+  try {
+    // Usamos Promise.allSettled por si algunos endpoints aún no existen en el backend (ej. workout o sleep)
+    const results = await Promise.allSettled([
+      api.get('/water/progress/today'),
+      api.get('/nutrition/progress/today'),
+      api.get('/workout/progress/today'),
+      api.get('/sleep/progress/today'),
+    ]);
+
+    const waterRes = results[0].status === 'fulfilled' ? results[0].value.data : null;
+    const nutritionRes = results[1].status === 'fulfilled' ? results[1].value.data : null;
+    const workoutRes = results[2].status === 'fulfilled' ? results[2].value.data : null;
+    const sleepRes = results[3].status === 'fulfilled' ? results[3].value.data : null;
+
+    return {
+      water: { 
+        label: waterRes?.goal_ml ? `${waterRes.total_ml}/${waterRes.goal_ml} ml` : '0/2000 ml' 
+      },
+      nutrition: { 
+        label: nutritionRes?.goals ? `${nutritionRes.totals?.calories || 0}/${nutritionRes.goals?.calories || 2000} kcal` : '0/2000 kcal' 
+      },
+      workout: { 
+        // Basándome en la nueva respuesta de la API {"is_completed":false,"workouts_count":0,"total_duration":0}
+        label: workoutRes?.is_completed 
+          ? 'Completado' 
+          : workoutRes?.workouts_count > 0 
+            ? `${workoutRes.workouts_count} Rutinas`
+            : 'Pendiente' 
+      },
+      sleep: { 
+        // Cubrimos tanto si devuelves hours como total_minutes
+        label: sleepRes?.hours !== undefined 
+          ? `${sleepRes.hours}/8 Hrs` 
+          : sleepRes?.total_minutes !== undefined 
+            ? `${(sleepRes.total_minutes / 60).toFixed(1)}/8 Hrs` 
+            : '0/8 Hrs' 
+      },
+    };
+  } catch (error) {
+    console.log('Error general fetching progress:', error);
+    return {
+      water: { label: 'Sin datos' },
+      nutrition: { label: 'Sin datos' },
+      workout: { label: 'Sin datos' },
+      sleep: { label: 'Sin datos' },
+    };
+  }
 };
 
 export default function DashboardScreen() {
   const theme = useTheme();
+  const logout = useAppStore(state => state.logout);
   const { data, isLoading } = useQuery({ queryKey: ['progressToday'], queryFn: fetchProgress });
+
+  const handleLogout = () => {
+    logout();
+    router.replace('/(auth)/login');
+  };
 
   const metrics = [
     { id: 'water', title: 'Agua', icon: 'cup-water', color: '#2196F3', detail: data?.water?.label || '0%' },
@@ -32,9 +75,12 @@ export default function DashboardScreen() {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={styles.header}>
-        <Text variant="headlineMedium" style={styles.greeting}>Hola, Campeón</Text>
-        <Text variant="bodyLarge" style={{ color: theme.colors.onSurfaceVariant }}>Tu progreso de hoy</Text>
+      <View style={[styles.header, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+        <View>
+          <Text variant="headlineMedium" style={styles.greeting}>Hola, Campeón</Text>
+          <Text variant="bodyLarge" style={{ color: theme.colors.onSurfaceVariant }}>Tu progreso de hoy</Text>
+        </View>
+        <IconButton icon="logout" onPress={handleLogout} />
       </View>
 
       {isLoading ? (

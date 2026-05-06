@@ -16,6 +16,9 @@ export {
     ErrorBoundary
 } from 'expo-router';
 
+import { useAppStore } from '@/src/store/useAppStore';
+import { useAuthStore } from '@/src/store/useAuthStore';
+
 export const unstable_settings = {
   initialRouteName: '(tabs)',
 };
@@ -26,6 +29,9 @@ SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();
 
 export default function RootLayout() {
+  const _hasHydratedAuth = useAuthStore(state => state._hasHydrated);
+  const _hasHydratedApp = useAppStore(state => state._hasHydrated);
+
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     ...FontAwesome.font,
@@ -37,12 +43,12 @@ export default function RootLayout() {
   }, [error]);
 
   useEffect(() => {
-    if (loaded) {
+    if (loaded && _hasHydratedAuth && _hasHydratedApp) {
       SplashScreen.hideAsync();
     }
-  }, [loaded]);
+  }, [loaded, _hasHydratedAuth, _hasHydratedApp]);
 
-  if (!loaded) {
+  if (!loaded || !_hasHydratedAuth || !_hasHydratedApp) {
     return null;
   }
 

@@ -1,5 +1,5 @@
 import { authService } from '@/src/services/authService';
-import { useAppStore } from '@/src/store/useAppStore';
+import { useAuthStore } from '@/src/store/useAuthStore';
 import { Link, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
@@ -9,15 +9,15 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { setSessionToken } = useAppStore();
+  const { setTokens } = useAuthStore();
   const router = useRouter();
 
   const handleRegister = async () => {
     setLoading(true);
     try {
       const response = await authService.register(email, password);
-      if (response && response.token) {
-        setSessionToken(response.token);
+      if (response && response.access_token) {
+        setTokens(response.access_token, response.refresh_token);
         router.replace('/(tabs)');
       }
     } catch (error: any) {

@@ -1,5 +1,5 @@
 import { authService } from '@/src/services/authService';
-import { useAppStore } from '@/src/store/useAppStore';
+import { useAuthStore } from '@/src/store/useAuthStore';
 import { Link, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
@@ -9,7 +9,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { setSessionToken } = useAppStore();
+  const { setTokens } = useAuthStore();
   const router = useRouter();
 
   const handleLogin = async () => {
@@ -17,8 +17,8 @@ export default function LoginScreen() {
     try {
       const response = await authService.login(email, password);
       // Validamos ambas propiedades por si el backend mandara el token
-      if (response && response.token) {
-        setSessionToken(response.token);
+      if (response && response.access_token) {
+        setTokens(response.access_token, response.refresh_token);
         router.replace('/(tabs)');
       } else {
         alert('Respuesta inválida del servidor.');

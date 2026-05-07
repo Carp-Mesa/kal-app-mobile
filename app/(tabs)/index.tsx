@@ -1,4 +1,5 @@
 import { ActionModal } from '@/src/components/ActionModal';
+import WeeklyProgressChart from '@/src/components/WeeklyProgressChart';
 import { useLogNutrition, useLogSleep, useLogWater } from '@/src/hooks/useLogs';
 import api from '@/src/services/apiClient';
 import { useAuthStore } from '@/src/store/useAuthStore';
@@ -188,6 +189,8 @@ export default function DashboardScreen() {
               />
             </Card>
           ))}
+          {/* ── Weekly Progress Chart ─────────────────────────────── */}
+          <WeeklyProgressChart />
         </View>
       )}
 

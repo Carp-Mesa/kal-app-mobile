@@ -37,6 +37,7 @@ interface ExerciseForm {
 interface WorkoutForm {
   name: string;
   notes: string;
+  duration_mins: string;
   exercises: ExerciseForm[];
 }
 
@@ -51,9 +52,20 @@ const createEmptyExercise = (): ExerciseForm => ({
   rpe: '',
 });
 
+// Captura la fecha actual en la zona horaria LOCAL del dispositivo.
+// Evitamos .toISOString() porque convierte a UTC y puede cambiar el día.
+const getLocalDateString = (): string => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const initialForm = (): WorkoutForm => ({
   name: '',
   notes: '',
+  duration_mins: '',
   exercises: [createEmptyExercise()],
 });
 
@@ -70,7 +82,7 @@ export default function NewWorkoutScreen() {
 
   // ── Form helpers ────────────────────────────────────────────────────────────
 
-  const updateWorkoutField = (field: keyof Pick<WorkoutForm, 'name' | 'notes'>, value: string) => {
+  const updateWorkoutField = (field: keyof Pick<WorkoutForm, 'name' | 'notes' | 'duration_mins'>, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -136,12 +148,15 @@ export default function NewWorkoutScreen() {
 
       await createWorkout({
         name: form.name.trim(),
+        date: getLocalDateString(), // 'YYYY-MM-DD' en zona horaria local
         notes: form.notes.trim() || undefined,
+        duration_mins: Number(form.duration_mins) || 0,
         exercises: exercisesPayload,
       });
 
-      // Invalida el cache del dashboard para mostrar datos actualizados
+      // Invalida el cache del dashboard y del historial
       await queryClient.invalidateQueries({ queryKey: ['progressToday'] });
+      await queryClient.invalidateQueries({ queryKey: ['workoutHistory'] });
 
       Alert.alert('¡Listo!', 'Entrenamiento guardado correctamente.', [
         { text: 'OK', onPress: () => router.back() },
@@ -206,6 +221,17 @@ export default function NewWorkoutScreen() {
               multiline
               numberOfLines={2}
               left={<TextInput.Icon icon="note-text-outline" />}
+            />
+            <TextInput
+              mode="outlined"
+              label="Duración (mins)"
+              placeholder="ej. 60"
+              value={form.duration_mins}
+              onChangeText={(t) => updateWorkoutField('duration_mins', t)}
+              style={styles.input}
+              keyboardType="numeric"
+              returnKeyType="done"
+              left={<TextInput.Icon icon="timer-outline" />}
             />
           </Card.Content>
         </Card>

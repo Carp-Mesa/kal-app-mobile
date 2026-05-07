@@ -25,10 +25,13 @@ export const useLogNutrition = () => {
 export const useLogSleep = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { start_time: string; end_time: string; quality_score: number; date: string }) => 
-      api.post('/sleep', data),
+    mutationFn: (data: { start_time: string; end_time: string; quality_score: number; date: string }) => {
+      console.log('[Sleep Debug] Datos:', data);
+      return api.post('/sleep', data);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['progressToday'] });
+      queryClient.invalidateQueries({ queryKey: ['todaySleep'] });
     },
   });
 };

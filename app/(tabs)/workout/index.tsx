@@ -27,6 +27,16 @@ export default function WorkoutIndexScreen() {
       >
         Nuevo Entrenamiento
       </Button>
+      <Button
+        mode="outlined"
+        icon="history"
+        onPress={() => router.push('/(tabs)/workout/history')}
+        style={styles.button}
+        contentStyle={styles.buttonContent}
+        labelStyle={{ fontSize: 16 }}
+      >
+        Ver Historial
+      </Button>
     </View>
   );
 }

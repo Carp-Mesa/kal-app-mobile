@@ -8,7 +8,7 @@ export default function WorkoutLayout() {
         name="index"
         options={{
           title: 'Entrenamientos',
-          headerShown: false, // El tab ya tiene header
+          headerShown: false,
         }}
       />
       <Stack.Screen
@@ -18,6 +18,15 @@ export default function WorkoutLayout() {
           headerBackTitle: 'Atrás',
           presentation: 'card',
           animation: 'slide_from_bottom',
+        }}
+      />
+      <Stack.Screen
+        name="history"
+        options={{
+          title: 'Historial de Entrenamientos',
+          headerBackTitle: 'Atrás',
+          presentation: 'card',
+          animation: 'slide_from_right',
         }}
       />
     </Stack>

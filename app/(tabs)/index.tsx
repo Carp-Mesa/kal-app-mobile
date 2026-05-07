@@ -1,13 +1,15 @@
 import { ActionModal } from '@/src/components/ActionModal';
 import WeeklyProgressChart from '@/src/components/WeeklyProgressChart';
 import { useLogNutrition, useLogSleep, useLogWater } from '@/src/hooks/useLogs';
+import { useTodaySleep } from '@/src/hooks/useSleep';
 import api from '@/src/services/apiClient';
+import { getProfile } from '@/src/services/profileService';
 import { useAuthStore } from '@/src/store/useAuthStore';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Avatar, Button, Card, FAB, IconButton, Portal, Snackbar, Text, TextInput, useTheme } from 'react-native-paper';
+import { ActivityIndicator, Avatar, Button, Card, FAB, IconButton, Portal, ProgressBar, Snackbar, Text, TextInput, useTheme } from 'react-native-paper';
 
 const fetchProgress = async () => {
   try {
@@ -16,13 +18,11 @@ const fetchProgress = async () => {
       api.get('/water/progress/today'),
       api.get('/nutrition/progress/today'),
       api.get('/workout/progress/today'),
-      api.get('/sleep/progress/today'),
     ]);
 
     const waterRes = results[0].status === 'fulfilled' ? results[0].value.data : null;
     const nutritionRes = results[1].status === 'fulfilled' ? results[1].value.data : null;
     const workoutRes = results[2].status === 'fulfilled' ? results[2].value.data : null;
-    const sleepRes = results[3].status === 'fulfilled' ? results[3].value.data : null;
 
     return {
       water: { 
@@ -39,14 +39,6 @@ const fetchProgress = async () => {
             ? `${workoutRes.workouts_count} Rutinas`
             : 'Pendiente' 
       },
-      sleep: { 
-        // Cubrimos tanto si devuelves hours como total_minutes
-        label: sleepRes?.hours !== undefined 
-          ? `${sleepRes.hours}/8 Hrs` 
-          : sleepRes?.total_minutes !== undefined 
-            ? `${(sleepRes.total_minutes / 60).toFixed(1)}/8 Hrs` 
-            : '0/8 Hrs' 
-      },
     };
   } catch (error) {
     console.log('Error general fetching progress:', error);
@@ -54,7 +46,6 @@ const fetchProgress = async () => {
       water: { label: 'Sin datos' },
       nutrition: { label: 'Sin datos' },
       workout: { label: 'Sin datos' },
-      sleep: { label: 'Sin datos' },
     };
   }
 };
@@ -63,6 +54,8 @@ export default function DashboardScreen() {
   const theme = useTheme();
   const clearTokens = useAuthStore(state => state.clearTokens);
   const { data, isLoading, refetch } = useQuery({ queryKey: ['progressToday'], queryFn: fetchProgress });
+  const { data: profile } = useQuery({ queryKey: ['profile'], queryFn: getProfile });
+  const { data: sleepData, refetch: refetchSleep } = useTodaySleep();
   const [refreshing, setRefreshing] = useState(false);
 
   // FAB & Modals States
@@ -123,8 +116,8 @@ export default function DashboardScreen() {
     const startDate = new Date(now);
     startDate.setHours(startH || 0, startM || 0, 0, 0);
 
-    // Si la hora de dormir es mayor a la de despertar (ej. 22:00 vs 06:00), asumimos que durmió el día anterior
-    if (startDate > endDate) {
+    // Si la hora de dormir es mayor o igual a la de despertar (ej. 22:00 vs 06:00), asumimos que durmió el día anterior
+    if (startDate >= endDate) {
       startDate.setDate(startDate.getDate() - 1);
     }
 
@@ -145,20 +138,27 @@ export default function DashboardScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refetch();
+    await Promise.all([refetch(), refetchSleep()]);
     setRefreshing(false);
-  }, [refetch]);
+  }, [refetch, refetchSleep]);
 
   const handleLogout = () => {
     clearTokens();
     router.replace('/(auth)/login');
   };
 
+  const sleepGoal = profile?.sleep_goal || 8;
+  const totalSleepMins = sleepData?.duration?.total_minutes || 0;
+  const sleptHours = Math.floor(totalSleepMins / 60);
+  const sleptMins = totalSleepMins % 60;
+  const sleepProgress = Math.min((totalSleepMins / 60) / sleepGoal, 1);
+  const sleepLabel = `${sleptHours}h ${sleptMins}m / ${sleepGoal}h`;
+
   const metrics = [
     { id: 'water', title: 'Agua', icon: 'cup-water', color: '#2196F3', detail: data?.water?.label || '0%' },
     { id: 'nutrition', title: 'Nutrición', icon: 'food-apple', color: '#4CAF50', detail: data?.nutrition?.label || '0%' },
     { id: 'workout', title: 'Entrenamiento', icon: 'dumbbell', color: '#FF9800', detail: data?.workout?.label || '0%' },
-    { id: 'sleep', title: 'Sueño', icon: 'bed', color: '#9C27B0', detail: data?.sleep?.label || '0%' },
+    { id: 'sleep', title: 'Sueño', icon: 'bed', color: '#9C27B0', detail: sleepLabel, progress: sleepProgress },
   ];
 
   return (
@@ -187,6 +187,11 @@ export default function DashboardScreen() {
                 subtitleVariant="bodyMedium"
                 left={(props) => <Avatar.Icon {...props} icon={m.icon} style={{ backgroundColor: m.color }} />}
               />
+              {m.id === 'sleep' && (
+                <Card.Content style={{ paddingBottom: 16 }}>
+                  <ProgressBar progress={m.progress || 0} color={m.color} style={{ height: 8, borderRadius: 4 }} />
+                </Card.Content>
+              )}
             </Card>
           ))}
           {/* ── Weekly Progress Chart ─────────────────────────────── */}

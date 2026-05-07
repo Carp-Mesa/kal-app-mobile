@@ -1,6 +1,6 @@
 import { getProfile, updateProfile } from '@/src/services/profileService';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -23,6 +23,10 @@ import {
 export default function ProfileScreen() {
   const theme = useTheme();
   const queryClient = useQueryClient();
+
+  // Guard: only hydrate the form once (on first successful load).
+  // Prevents overwriting active user edits on background refetches.
+  const isInitialized = useRef(false);
 
   const [snackbar, setSnackbar] = useState({ visible: false, message: '' });
 
@@ -60,14 +64,19 @@ export default function ProfileScreen() {
   // ── Effects ────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (profile) {
-      setFullName(profile.full_name || '');
-      setWeightGoal(profile.weight_goal?.toString() || '');
-      setCalorieGoal(profile.calorie_goal?.toString() || '');
-      setProteinGoal(profile.protein_goal?.toString() || '');
-      setCarbsGoal(profile.carbs_goal?.toString() || '');
-      setFatsGoal(profile.fats_goal?.toString() || '');
-      setWaterGoal(profile.water_goal?.toString() || '');
+    if (profile && !isInitialized.current) {
+      console.log('[Profile Load] Datos recibidos:', profile);
+
+      // Verify field names match DB schema: calorie_goal, protein_goal, etc.
+      setFullName(profile.full_name ?? '');
+      setWeightGoal(profile.weight_goal?.toString() ?? '');
+      setCalorieGoal(profile.calorie_goal?.toString() ?? '');
+      setProteinGoal(profile.protein_goal?.toString() ?? '');
+      setCarbsGoal(profile.carbs_goal?.toString() ?? '');
+      setFatsGoal(profile.fats_goal?.toString() ?? '');
+      setWaterGoal(profile.water_goal?.toString() ?? '');
+
+      isInitialized.current = true;
     }
   }, [profile]);
 

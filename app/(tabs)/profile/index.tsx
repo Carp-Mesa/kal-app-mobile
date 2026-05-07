@@ -75,6 +75,7 @@ export default function ProfileScreen() {
       setCarbsGoal(profile.carbs_goal?.toString() ?? '');
       setFatsGoal(profile.fats_goal?.toString() ?? '');
       setWaterGoal(profile.water_goal?.toString() ?? '');
+      setCurrentWeight(profile.current_weight?.toString() ?? '');
 
       isInitialized.current = true;
     }
@@ -114,6 +115,7 @@ export default function ProfileScreen() {
       carbs_goal: parseInt(carbsGoal, 10) || undefined,
       fats_goal: parseInt(fatsGoal, 10) || undefined,
       water_goal: parseInt(waterGoal, 10) || undefined,
+      current_weight: parseFloat(currentWeight) || undefined,
     });
   };
 

@@ -11,6 +11,7 @@ export interface ProfileData {
   carbs_goal?: number;
   fats_goal?: number;
   water_goal?: number;
+  current_weight?: number;
 }
 
 export const getProfile = async (): Promise<ProfileData> => {

@@ -1,7 +1,8 @@
+import { useExerciseSuggestions } from '@/src/hooks/useExerciseSuggestions';
 import { createWorkout, ExercisePayload } from '@/src/services/workoutService';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import React, { useRef, useState } from 'react';
+import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -14,10 +15,12 @@ import {
   ActivityIndicator,
   Button,
   Card,
+  Chip,
   Divider,
   FAB,
   IconButton,
   Snackbar,
+  Surface,
   Text,
   TextInput,
   useTheme,
@@ -75,6 +78,15 @@ export default function NewWorkoutScreen() {
   const theme = useTheme();
   const queryClient = useQueryClient();
   const scrollRef = useRef<ScrollView>(null);
+  const { data: rawSuggestions = [] } = useExerciseSuggestions();
+
+  const suggestions = useMemo(() => {
+    const normalized = (rawSuggestions as any[]).map((s) =>
+      typeof s === 'object' && s !== null ? s.name : String(s)
+    );
+    console.log('[DEBUG] Sugerencias API:', normalized);
+    return normalized;
+  }, [rawSuggestions]);
 
   const [form, setForm] = useState<WorkoutForm>(initialForm);
   const [isSaving, setIsSaving] = useState(false);
@@ -82,38 +94,33 @@ export default function NewWorkoutScreen() {
 
   // ── Form helpers ────────────────────────────────────────────────────────────
 
-  const updateWorkoutField = (field: keyof Pick<WorkoutForm, 'name' | 'notes' | 'duration_mins'>, value: string) => {
+  const updateWorkoutField = useCallback((field: keyof Pick<WorkoutForm, 'name' | 'notes' | 'duration_mins'>, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
-  };
+  }, []);
 
-  const updateExerciseField = (
-    id: string,
-    field: keyof Omit<ExerciseForm, 'id'>,
-    value: string
-  ) => {
+  const updateExerciseField = useCallback((id: string, field: keyof Omit<ExerciseForm, 'id'>, value: string) => {
     setForm((prev) => ({
       ...prev,
       exercises: prev.exercises.map((ex) =>
         ex.id === id ? { ...ex, [field]: value } : ex
       ),
     }));
-  };
+  }, []);
 
-  const addExercise = () => {
+  const addExercise = useCallback(() => {
     setForm((prev) => ({
       ...prev,
       exercises: [...prev.exercises, createEmptyExercise()],
     }));
-    // Scroll al final después de render
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
-  };
+  }, []);
 
-  const removeExercise = (id: string) => {
+  const removeExercise = useCallback((id: string) => {
     setForm((prev) => ({
       ...prev,
       exercises: prev.exercises.filter((ex) => ex.id !== id),
     }));
-  };
+  }, []);
 
   // ── Validation ──────────────────────────────────────────────────────────────
 
@@ -247,10 +254,13 @@ export default function NewWorkoutScreen() {
           <ExerciseCard
             key={ex.id}
             exercise={ex}
+            exerciseId={ex.id}
             index={index}
-            onUpdate={(field, value) => updateExerciseField(ex.id, field, value)}
-            onRemove={() => removeExercise(ex.id)}
+            onUpdate={updateExerciseField}
+            onRemoveId={ex.id}
+            onRemoveExercise={removeExercise}
             canRemove={form.exercises.length > 1}
+            suggestions={suggestions}
           />
         ))}
 
@@ -297,20 +307,39 @@ export default function NewWorkoutScreen() {
 
 interface ExerciseCardProps {
   exercise: ExerciseForm;
+  exerciseId: string;
   index: number;
-  onUpdate: (field: keyof Omit<ExerciseForm, 'id'>, value: string) => void;
-  onRemove: () => void;
+  onUpdate: (id: string, field: keyof Omit<ExerciseForm, 'id'>, value: string) => void;
+  onRemoveId: string;
+  onRemoveExercise: (id: string) => void;
   canRemove: boolean;
+  suggestions: string[];
 }
 
-const ExerciseCard = ({
+const ExerciseCard = memo(({
   exercise,
+  exerciseId,
   index,
   onUpdate,
-  onRemove,
+  onRemoveId,
+  onRemoveExercise,
   canRemove,
+  suggestions,
 }: ExerciseCardProps) => {
   const theme = useTheme();
+  const [nameFocused, setNameFocused] = useState(false);
+  const justSelectedRef = useRef(false);
+
+  const filteredSuggestions = useMemo(() => {
+    const q = exercise.name.trim().toLowerCase();
+    if (!q) return [];
+    return suggestions
+      .filter((s) => s.toLowerCase().includes(q))
+      .slice(0, 6);
+  }, [exercise.name, suggestions]);
+
+  const showSuggestions = nameFocused && exercise.name.trim().length > 0 && filteredSuggestions.length > 0;
+
   return (
     <Card
       style={[
@@ -342,7 +371,7 @@ const ExerciseCard = ({
               icon="delete-outline"
               iconColor={theme.colors.error}
               size={22}
-              onPress={onRemove}
+              onPress={() => onRemoveExercise(onRemoveId)}
               style={styles.deleteBtn}
             />
           )}
@@ -350,17 +379,47 @@ const ExerciseCard = ({
 
         <Divider style={styles.divider} />
 
-        {/* Nombre del ejercicio */}
+        {/* Nombre del ejercicio con autocompletado */}
         <TextInput
           mode="outlined"
           label="Nombre del ejercicio *"
           placeholder="ej. Press de banca, Sentadilla..."
           value={exercise.name}
-          onChangeText={(t) => onUpdate('name', t)}
+          onChangeText={(t) => onUpdate(exerciseId, 'name', t)}
+          onFocus={() => setNameFocused(true)}
+          onBlur={() => {
+            if (!justSelectedRef.current) {
+              setNameFocused(false);
+            }
+            justSelectedRef.current = false;
+          }}
           style={styles.input}
           autoCapitalize="words"
           returnKeyType="next"
+          left={<TextInput.Icon icon="magnify" />}
         />
+        {showSuggestions && (
+          <Surface style={[styles.suggestionsContainer, { backgroundColor: theme.colors.surface }]} elevation={4}>
+            <View style={styles.suggestionsInner}>
+              {filteredSuggestions.map((suggestion) => (
+                <Chip
+                  key={suggestion}
+                  mode="flat"
+                  icon="dumbbell"
+                  onPress={() => {
+                    justSelectedRef.current = true;
+                    onUpdate(exerciseId, 'name', suggestion);
+                    setNameFocused(false);
+                  }}
+                  style={[styles.suggestionChip, { backgroundColor: theme.colors.secondaryContainer }]}
+                  textStyle={{ color: theme.colors.onSecondaryContainer, fontSize: 13 }}
+                >
+                  {suggestion}
+                </Chip>
+              ))}
+            </View>
+          </Surface>
+        )}
 
         {/* Fila: Sets y Reps */}
         <View style={styles.row}>
@@ -369,7 +428,7 @@ const ExerciseCard = ({
             label="Series"
             placeholder="4"
             value={exercise.sets}
-            onChangeText={(t) => onUpdate('sets', t)}
+            onChangeText={(t) => onUpdate(exerciseId, 'sets', t)}
             keyboardType="numeric"
             style={[styles.input, styles.flex1, styles.marginRight]}
             returnKeyType="next"
@@ -380,7 +439,7 @@ const ExerciseCard = ({
             label="Reps"
             placeholder="10"
             value={exercise.reps}
-            onChangeText={(t) => onUpdate('reps', t)}
+            onChangeText={(t) => onUpdate(exerciseId, 'reps', t)}
             keyboardType="numeric"
             style={[styles.input, styles.flex1, styles.marginLeft]}
             returnKeyType="next"
@@ -395,7 +454,7 @@ const ExerciseCard = ({
             label="Peso (kg)"
             placeholder="80.0"
             value={exercise.weight_kg}
-            onChangeText={(t) => onUpdate('weight_kg', t)}
+            onChangeText={(t) => onUpdate(exerciseId, 'weight_kg', t)}
             keyboardType="decimal-pad"
             style={[styles.input, styles.flex1, styles.marginRight]}
             returnKeyType="next"
@@ -406,7 +465,7 @@ const ExerciseCard = ({
             label="RPE (1-10)"
             placeholder="8"
             value={exercise.rpe}
-            onChangeText={(t) => onUpdate('rpe', t)}
+            onChangeText={(t) => onUpdate(exerciseId, 'rpe', t)}
             keyboardType="numeric"
             style={[styles.input, styles.flex1, styles.marginLeft]}
             returnKeyType="done"
@@ -416,7 +475,7 @@ const ExerciseCard = ({
       </Card.Content>
     </Card>
   );
-};
+});
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -481,6 +540,21 @@ const styles = StyleSheet.create({
   input: {
     marginBottom: 10,
     fontSize: 15,
+  },
+  suggestionsContainer: {
+    borderRadius: 14,
+    marginBottom: 10,
+    zIndex: 9999,
+    elevation: 4,
+  },
+  suggestionsInner: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    padding: 10,
+  },
+  suggestionChip: {
+    borderRadius: 20,
   },
   row: {
     flexDirection: 'row',

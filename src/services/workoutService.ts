@@ -90,3 +90,12 @@ export const getWorkoutDetail = async (
   const response = await apiClient.get<WorkoutHistoryItem>(`/workout/${id}`);
   return response.data;
 };
+
+/**
+ * Obtiene la lista de sugerencias de nombres de ejercicios.
+ * Retorna un array simple de strings con los nombres más usados.
+ */
+export const getExerciseSuggestions = async (): Promise<string[]> => {
+  const response = await apiClient.get<string[]>('/workout/exercises/suggestions');
+  return response.data;
+};

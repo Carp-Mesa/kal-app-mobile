@@ -1,5 +1,6 @@
 import { getProfile, updateProfile } from '@/src/services/profileService';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -269,6 +270,16 @@ export default function ProfileScreen() {
         >
           Guardar Cambios
         </Button>
+        <Button
+          mode="outlined"
+          icon="chart-bar"
+          onPress={() => router.push('/(tabs)/profile/history')}
+          style={styles.historyButton}
+          contentStyle={styles.saveButtonContent}
+          labelStyle={{ fontSize: 16 }}
+        >
+          Ver Historial Nutricional
+        </Button>
         <View style={{ height: 40 }} />
       </ScrollView>
 
@@ -330,6 +341,10 @@ const styles = StyleSheet.create({
   saveButton: {
     borderRadius: 14,
     marginTop: 8,
+  },
+  historyButton: {
+    borderRadius: 14,
+    marginTop: 10,
   },
   saveButtonContent: {
     height: 52,

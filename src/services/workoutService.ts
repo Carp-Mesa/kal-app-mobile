@@ -79,3 +79,14 @@ export const getWorkoutHistory = async (
   );
   return response.data;
 };
+
+/**
+ * Obtiene el detalle completo de un entrenamiento por su ID.
+ * Retorna metadatos del entrenamiento y el array de ejercicios anidado.
+ */
+export const getWorkoutDetail = async (
+  id: string
+): Promise<WorkoutHistoryItem> => {
+  const response = await apiClient.get<WorkoutHistoryItem>(`/workout/${id}`);
+  return response.data;
+};

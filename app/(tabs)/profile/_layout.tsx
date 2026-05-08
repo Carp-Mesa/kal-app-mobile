@@ -8,7 +8,16 @@ export default function ProfileLayout() {
         name="index"
         options={{
           title: 'Perfil y Metas',
-          headerShown: true, // Show header for the profile screen
+          headerShown: true,
+        }}
+      />
+      <Stack.Screen
+        name="history"
+        options={{
+          title: 'Historial Nutricional',
+          headerBackTitle: 'Atrás',
+          presentation: 'card',
+          animation: 'slide_from_right',
         }}
       />
     </Stack>

@@ -29,6 +29,15 @@ export default function WorkoutLayout() {
           animation: 'slide_from_right',
         }}
       />
+      <Stack.Screen
+        name="[id]"
+        options={{
+          title: 'Detalle del Entrenamiento',
+          headerBackTitle: 'Atrás',
+          presentation: 'card',
+          animation: 'slide_from_right',
+        }}
+      />
     </Stack>
   );
 }

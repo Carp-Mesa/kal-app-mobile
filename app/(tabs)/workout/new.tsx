@@ -1,8 +1,8 @@
 import { useExerciseSuggestions } from '@/src/hooks/useExerciseSuggestions';
-import { createWorkout, ExercisePayload } from '@/src/services/workoutService';
+import { createWorkout, ExercisePayload, SetEntry } from '@/src/services/workoutService';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -18,6 +18,7 @@ import {
   Chip,
   Divider,
   FAB,
+  HelperText,
   IconButton,
   Snackbar,
   Surface,
@@ -28,12 +29,16 @@ import {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-interface ExerciseForm {
-  id: string; // local key for FlatList
-  name: string;
-  sets: string;
+interface SetForm {
+  id: string;
   reps: string;
   weight_kg: string;
+}
+
+interface ExerciseForm {
+  id: string;
+  name: string;
+  sets: SetForm[];
   rpe: string;
 }
 
@@ -46,23 +51,33 @@ interface WorkoutForm {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const createEmptyExercise = (): ExerciseForm => ({
-  id: Date.now().toString() + Math.random().toString(36).slice(2),
-  name: '',
-  sets: '',
+const uid = (): string => Date.now().toString() + Math.random().toString(36).slice(2);
+
+const createEmptySet = (): SetForm => ({
+  id: uid(),
   reps: '',
   weight_kg: '',
+});
+
+const createInheritedSet = (previous?: SetForm): SetForm => ({
+  id: uid(),
+  reps: previous?.reps ?? '',
+  weight_kg: previous?.weight_kg ?? '',
+});
+
+const createEmptyExercise = (): ExerciseForm => ({
+  id: uid(),
+  name: '',
+  sets: [createEmptySet()],
   rpe: '',
 });
 
-// Captura la fecha actual en la zona horaria LOCAL del dispositivo.
-// Evitamos .toISOString() porque convierte a UTC y puede cambiar el día.
 const getLocalDateString = (): string => {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 };
 
 const initialForm = (): WorkoutForm => ({
@@ -70,6 +85,305 @@ const initialForm = (): WorkoutForm => ({
   notes: '',
   duration_mins: '',
   exercises: [createEmptyExercise()],
+});
+
+// ─── Input Filters ───────────────────────────────────────────────────────────
+
+const filterInteger = (text: string): string => text.replace(/[^0-9]/g, '');
+
+const filterDecimal = (text: string): string => {
+  let cleaned = text.replace(/[^0-9.]/g, '');
+  const parts = cleaned.split('.');
+  if (parts.length > 2) {
+    cleaned = parts[0] + '.' + parts.slice(1).join('');
+  }
+  return cleaned;
+};
+
+// ─── SetRow (memoized — local state eliminates re-render lag) ────────────────
+
+interface SetRowProps {
+  setId: string;
+  setIndex: number;
+  reps: string;
+  weightKg: string;
+  onUpdateSet: (exerciseId: string, setId: string, field: 'reps' | 'weight_kg', value: string) => void;
+  onRemoveSet: (exerciseId: string, setId: string) => void;
+  canRemove: boolean;
+  exerciseId: string;
+}
+
+const SetRow = memo(function SetRow({
+  setId,
+  setIndex,
+  reps,
+  weightKg,
+  onUpdateSet,
+  onRemoveSet,
+  canRemove,
+  exerciseId,
+}: SetRowProps) {
+  const theme = useTheme();
+  const [localReps, setLocalReps] = useState(reps);
+  const [localWeight, setLocalWeight] = useState(weightKg);
+  const repsFocused = useRef(false);
+  const weightFocused = useRef(false);
+
+  useEffect(() => {
+    if (!repsFocused.current) setLocalReps(reps);
+  }, [reps]);
+
+  useEffect(() => {
+    if (!weightFocused.current) setLocalWeight(weightKg);
+  }, [weightKg]);
+
+  return (
+    <View style={styles.setRow}>
+      <View style={[styles.setBadge, { backgroundColor: theme.colors.primaryContainer }]}>
+        <Text variant="labelSmall" style={{ color: theme.colors.onPrimaryContainer, fontWeight: '700' }}>
+          {setIndex + 1}
+        </Text>
+      </View>
+      <TextInput
+        mode="outlined"
+        label="Reps"
+        placeholder="10"
+        value={localReps}
+        onChangeText={(t) => {
+          const filtered = filterInteger(t);
+          setLocalReps(filtered);
+          repsFocused.current = true;
+          onUpdateSet(exerciseId, setId, 'reps', filtered);
+        }}
+        onFocus={() => { repsFocused.current = true; }}
+        onBlur={() => {
+          repsFocused.current = false;
+          setLocalReps(reps);
+        }}
+        keyboardType="numeric"
+        style={[styles.setField, { marginRight: 6 }]}
+        dense
+        returnKeyType="next"
+      />
+      <TextInput
+        mode="outlined"
+        label="Kg"
+        placeholder="80"
+        value={localWeight}
+        onChangeText={(t) => {
+          const filtered = filterDecimal(t);
+          setLocalWeight(filtered);
+          weightFocused.current = true;
+          onUpdateSet(exerciseId, setId, 'weight_kg', filtered);
+        }}
+        onFocus={() => { weightFocused.current = true; }}
+        onBlur={() => {
+          weightFocused.current = false;
+          setLocalWeight(weightKg);
+        }}
+        keyboardType="decimal-pad"
+        style={styles.setField}
+        dense
+        returnKeyType="done"
+      />
+      {canRemove ? (
+        <IconButton
+          icon="close-circle-outline"
+          iconColor={theme.colors.error}
+          size={18}
+          onPress={() => onRemoveSet(exerciseId, setId)}
+          style={styles.removeSetBtn}
+        />
+      ) : <View style={{ width: 26 }} />}
+    </View>
+  );
+});
+
+// ─── ExerciseCard (memoized) ─────────────────────────────────────────────────
+
+interface ExerciseCardProps {
+  exercise: ExerciseForm;
+  exerciseId: string;
+  index: number;
+  onUpdateExercise: (id: string, field: 'name' | 'rpe', value: string) => void;
+  onUpdateSet: (exerciseId: string, setId: string, field: 'reps' | 'weight_kg', value: string) => void;
+  onAddSet: (exerciseId: string) => void;
+  onRemoveSet: (exerciseId: string, setId: string) => void;
+  onRemoveExercise: (id: string) => void;
+  canRemove: boolean;
+  suggestions: string[];
+}
+
+const ExerciseCard = memo(function ExerciseCard({
+  exercise,
+  exerciseId,
+  index,
+  onUpdateExercise,
+  onUpdateSet,
+  onAddSet,
+  onRemoveSet,
+  onRemoveExercise,
+  canRemove,
+  suggestions,
+}: ExerciseCardProps) {
+  const theme = useTheme();
+  const [nameFocused, setNameFocused] = useState(false);
+  const [localName, setLocalName] = useState(exercise.name);
+  const nameFocusedRef = useRef(false);
+  const justSelectedRef = useRef(false);
+
+  useEffect(() => {
+    if (!nameFocusedRef.current) setLocalName(exercise.name);
+  }, [exercise.name]);
+
+  const filteredSuggestions = useMemo(() => {
+    const q = exercise.name.trim().toLowerCase();
+    if (!q) return [];
+    return suggestions.filter((s) => s.toLowerCase().includes(q)).slice(0, 6);
+  }, [exercise.name, suggestions]);
+
+  const showSuggestions = nameFocused && exercise.name.trim().length > 0 && filteredSuggestions.length > 0;
+
+  const totalVolume = exercise.sets.reduce((sum, s) => {
+    const r = Number(s.reps) || 0;
+    const w = parseFloat(s.weight_kg) || 0;
+    return sum + (r * w);
+  }, 0);
+
+  return (
+    <Card
+      style={[styles.card, styles.exerciseCard, { backgroundColor: theme.colors.surface }]}
+      mode="elevated"
+    >
+      <Card.Content style={styles.cardContent}>
+        <View style={styles.exerciseHeader}>
+          <View style={styles.exerciseBadge}>
+            <Text variant="labelLarge" style={{ color: theme.colors.onPrimary, fontWeight: '700' }}>
+              #{index + 1}
+            </Text>
+          </View>
+          <Text variant="titleSmall" style={{ flex: 1, color: theme.colors.onSurface, marginLeft: 4 }}>
+            Ejercicio {index + 1}
+          </Text>
+          {canRemove && (
+            <IconButton
+              icon="delete-outline"
+              iconColor={theme.colors.error}
+              size={22}
+              onPress={() => onRemoveExercise(exerciseId)}
+              style={styles.deleteBtn}
+            />
+          )}
+        </View>
+
+        <Divider style={styles.divider} />
+
+        <TextInput
+          mode="outlined"
+          label="Ejercicio *"
+          placeholder="Press banca..."
+          value={localName}
+          onChangeText={(t) => {
+            setLocalName(t);
+            nameFocusedRef.current = true;
+            onUpdateExercise(exerciseId, 'name', t);
+          }}
+          onFocus={() => { setNameFocused(true); nameFocusedRef.current = true; }}
+          onBlur={() => {
+            nameFocusedRef.current = false;
+            if (!justSelectedRef.current) setNameFocused(false);
+            justSelectedRef.current = false;
+            setLocalName(exercise.name);
+          }}
+          style={styles.input}
+          autoCapitalize="words"
+          returnKeyType="next"
+          left={<TextInput.Icon icon="magnify" />}
+          dense
+        />
+        <HelperText type="info" visible padding="none" style={styles.helperText}>
+          Busca o escribe el nombre
+        </HelperText>
+        {showSuggestions && (
+          <Surface style={[styles.suggestionsContainer, { backgroundColor: theme.colors.surface }]} elevation={4}>
+            <View style={styles.suggestionsInner}>
+              {filteredSuggestions.map((suggestion) => (
+                <Chip
+                  key={suggestion}
+                  mode="flat"
+                  icon="dumbbell"
+                  onPress={() => {
+                    justSelectedRef.current = true;
+                    onUpdateExercise(exerciseId, 'name', suggestion);
+                    setLocalName(suggestion);
+                    setNameFocused(false);
+                  }}
+                  style={[styles.suggestionChip, { backgroundColor: theme.colors.secondaryContainer }]}
+                  textStyle={{ color: theme.colors.onSecondaryContainer, fontSize: 13 }}
+                >
+                  {suggestion}
+                </Chip>
+              ))}
+            </View>
+          </Surface>
+        )}
+
+        <View style={styles.setsSectionHeader}>
+          <Text variant="labelLarge" style={{ color: theme.colors.onSurface, fontWeight: '600' }}>
+            Series ({exercise.sets.length})
+          </Text>
+          {totalVolume > 0 && (
+            <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
+              Vol. {totalVolume.toLocaleString('es-CO')} kg
+            </Text>
+          )}
+        </View>
+
+        {exercise.sets.map((s, sIdx) => (
+          <SetRow
+            key={s.id}
+            setId={s.id}
+            setIndex={sIdx}
+            reps={s.reps}
+            weightKg={s.weight_kg}
+            onUpdateSet={onUpdateSet}
+            onRemoveSet={onRemoveSet}
+            canRemove={exercise.sets.length > 1}
+            exerciseId={exerciseId}
+          />
+        ))}
+
+        <Button
+          mode="contained-tonal"
+          icon="plus"
+          onPress={() => onAddSet(exerciseId)}
+          style={styles.addSetBtn}
+          contentStyle={{ height: 40 }}
+          labelStyle={{ fontSize: 13 }}
+          compact
+          textColor={theme.colors.primary}
+        >
+          Añadir Serie
+        </Button>
+
+        <TextInput
+          mode="outlined"
+          label="RPE"
+          placeholder="1-10"
+          value={exercise.rpe}
+          onChangeText={(t) => onUpdateExercise(exerciseId, 'rpe', filterInteger(t))}
+          keyboardType="numeric"
+          style={[styles.input, { marginTop: 10 }]}
+          left={<TextInput.Icon icon="gauge" />}
+          dense
+          returnKeyType="done"
+        />
+        <HelperText type="info" visible padding="none" style={styles.helperText}>
+          Esfuerzo percibido (1 fácil - 10 máximo)
+        </HelperText>
+      </Card.Content>
+    </Card>
+  );
 });
 
 // ─── Screen ──────────────────────────────────────────────────────────────────
@@ -84,7 +398,6 @@ export default function NewWorkoutScreen() {
     const normalized = (rawSuggestions as any[]).map((s) =>
       typeof s === 'object' && s !== null ? s.name : String(s)
     );
-    console.log('[DEBUG] Sugerencias API:', normalized);
     return normalized;
   }, [rawSuggestions]);
 
@@ -92,17 +405,46 @@ export default function NewWorkoutScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [snackbar, setSnackbar] = useState({ visible: false, message: '' });
 
-  // ── Form helpers ────────────────────────────────────────────────────────────
-
   const updateWorkoutField = useCallback((field: keyof Pick<WorkoutForm, 'name' | 'notes' | 'duration_mins'>, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   }, []);
 
-  const updateExerciseField = useCallback((id: string, field: keyof Omit<ExerciseForm, 'id'>, value: string) => {
+  const updateExerciseField = useCallback((id: string, field: 'name' | 'rpe', value: string) => {
     setForm((prev) => ({
       ...prev,
       exercises: prev.exercises.map((ex) =>
         ex.id === id ? { ...ex, [field]: value } : ex
+      ),
+    }));
+  }, []);
+
+  const updateSetField = useCallback((exerciseId: string, setId: string, field: 'reps' | 'weight_kg', value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      exercises: prev.exercises.map((ex) =>
+        ex.id === exerciseId
+          ? { ...ex, sets: ex.sets.map((s) => (s.id === setId ? { ...s, [field]: value } : s)) }
+          : ex
+      ),
+    }));
+  }, []);
+
+  const addSet = useCallback((exerciseId: string) => {
+    setForm((prev) => ({
+      ...prev,
+      exercises: prev.exercises.map((ex) => {
+        if (ex.id !== exerciseId) return ex;
+        const lastSet = ex.sets[ex.sets.length - 1];
+        return { ...ex, sets: [...ex.sets, createInheritedSet(lastSet)] };
+      }),
+    }));
+  }, []);
+
+  const removeSet = useCallback((exerciseId: string, setId: string) => {
+    setForm((prev) => ({
+      ...prev,
+      exercises: prev.exercises.map((ex) =>
+        ex.id === exerciseId ? { ...ex, sets: ex.sets.filter((s) => s.id !== setId) } : ex
       ),
     }));
   }, []);
@@ -122,19 +464,19 @@ export default function NewWorkoutScreen() {
     }));
   }, []);
 
-  // ── Validation ──────────────────────────────────────────────────────────────
-
   const validate = (): string | null => {
     if (!form.name.trim()) return 'El nombre del entrenamiento es obligatorio.';
     if (form.exercises.length === 0) return 'Agrega al menos un ejercicio.';
     for (let i = 0; i < form.exercises.length; i++) {
       const ex = form.exercises[i];
-      if (!ex.name.trim()) return `El ejercicio ${i + 1} necesita un nombre.`;
+      if (!ex.name.trim()) return `Ejercicio ${i + 1}: necesita un nombre.`;
+      if (ex.sets.length === 0) return `Ejercicio ${i + 1}: necesita al menos una serie.`;
+      for (let j = 0; j < ex.sets.length; j++) {
+        if (!ex.sets[j].reps) return `Serie ${j + 1} de ${ex.name}: repeticiones requeridas.`;
+      }
     }
     return null;
   };
-
-  // ── Submit ──────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
     const error = validate();
@@ -147,21 +489,21 @@ export default function NewWorkoutScreen() {
     try {
       const exercisesPayload: ExercisePayload[] = form.exercises.map((ex) => ({
         name: ex.name.trim(),
-        sets: Number(ex.sets) || 0,
-        reps: Number(ex.reps) || 0,
-        weight_kg: parseFloat(ex.weight_kg) || 0,
-        rpe: Number(ex.rpe) || 0,
+        sets: ex.sets.map((s): SetEntry => ({
+          reps: Number(s.reps) || 0,
+          weight_kg: parseFloat(s.weight_kg) || 0,
+        })),
+        ...(ex.rpe && { rpe: Number(ex.rpe) || undefined }),
       }));
 
       await createWorkout({
         name: form.name.trim(),
-        date: getLocalDateString(), // 'YYYY-MM-DD' en zona horaria local
+        date: getLocalDateString(),
         notes: form.notes.trim() || undefined,
         duration_mins: Number(form.duration_mins) || 0,
         exercises: exercisesPayload,
       });
 
-      // Invalida el cache del dashboard y del historial
       await queryClient.invalidateQueries({ queryKey: ['progressToday'] });
       await queryClient.invalidateQueries({ queryKey: ['workoutHistory'] });
 
@@ -169,15 +511,12 @@ export default function NewWorkoutScreen() {
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : 'Ocurrió un error al guardar.';
+      const message = err instanceof Error ? err.message : 'Ocurrió un error al guardar.';
       setSnackbar({ visible: true, message });
     } finally {
       setIsSaving(false);
     }
   };
-
-  // ─── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <KeyboardAvoidingView
@@ -191,17 +530,15 @@ export default function NewWorkoutScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Header Info ────────────────────────────────────────────── */}
         <View style={styles.headerSection}>
           <Text variant="headlineSmall" style={[styles.sectionTitle, { color: theme.colors.onBackground }]}>
             Nuevo Entrenamiento
           </Text>
           <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-            Registra tu rutina y los ejercicios realizados.
+            Registra tu rutina ejercicio por ejercicio.
           </Text>
         </View>
 
-        {/* ── Workout Info Card ──────────────────────────────────────── */}
         <Card style={[styles.card, { backgroundColor: theme.colors.surface }]} mode="elevated">
           <Card.Content style={styles.cardContent}>
             <Text variant="titleMedium" style={[styles.cardLabel, { color: theme.colors.primary }]}>
@@ -209,41 +546,43 @@ export default function NewWorkoutScreen() {
             </Text>
             <TextInput
               mode="outlined"
-              label="Nombre del entrenamiento *"
-              placeholder="ej. Push Day, Piernas, Full Body"
+              label="Nombre *"
+              placeholder="Push Day"
               value={form.name}
               onChangeText={(t) => updateWorkoutField('name', t)}
               style={styles.input}
               autoCapitalize="words"
               returnKeyType="next"
               left={<TextInput.Icon icon="dumbbell" />}
+              dense
             />
             <TextInput
               mode="outlined"
-              label="Notas (opcional)"
-              placeholder="ej. Sesión de deload, enfocado en banca..."
+              label="Notas"
+              placeholder="Deload..."
               value={form.notes}
               onChangeText={(t) => updateWorkoutField('notes', t)}
               style={styles.input}
               multiline
               numberOfLines={2}
               left={<TextInput.Icon icon="note-text-outline" />}
+              dense
             />
             <TextInput
               mode="outlined"
               label="Duración (mins)"
-              placeholder="ej. 60"
+              placeholder="60"
               value={form.duration_mins}
-              onChangeText={(t) => updateWorkoutField('duration_mins', t)}
+              onChangeText={(t) => updateWorkoutField('duration_mins', filterInteger(t))}
               style={styles.input}
               keyboardType="numeric"
               returnKeyType="done"
               left={<TextInput.Icon icon="timer-outline" />}
+              dense
             />
           </Card.Content>
         </Card>
 
-        {/* ── Exercises Section ──────────────────────────────────────── */}
         <View style={styles.sectionHeader}>
           <Text variant="titleMedium" style={{ color: theme.colors.onBackground, fontWeight: '700' }}>
             💪 Ejercicios ({form.exercises.length})
@@ -256,15 +595,16 @@ export default function NewWorkoutScreen() {
             exercise={ex}
             exerciseId={ex.id}
             index={index}
-            onUpdate={updateExerciseField}
-            onRemoveId={ex.id}
+            onUpdateExercise={updateExerciseField}
+            onUpdateSet={updateSetField}
+            onAddSet={addSet}
+            onRemoveSet={removeSet}
             onRemoveExercise={removeExercise}
             canRemove={form.exercises.length > 1}
             suggestions={suggestions}
           />
         ))}
 
-        {/* ── Add Exercise Button ────────────────────────────────────── */}
         <Button
           mode="outlined"
           icon="plus-circle-outline"
@@ -276,11 +616,9 @@ export default function NewWorkoutScreen() {
           Añadir Ejercicio
         </Button>
 
-        {/* Spacer para que el FAB no tape el último elemento */}
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* ── Floating Save Button ───────────────────────────────────── */}
       <FAB
         icon={isSaving ? () => <ActivityIndicator size={20} color={theme.colors.onPrimary} /> : 'content-save-outline'}
         label={isSaving ? 'Guardando...' : 'Guardar'}
@@ -290,7 +628,6 @@ export default function NewWorkoutScreen() {
         color={theme.colors.onPrimary}
       />
 
-      {/* ── Snackbar ───────────────────────────────────────────────── */}
       <Snackbar
         visible={snackbar.visible}
         onDismiss={() => setSnackbar({ visible: false, message: '' })}
@@ -302,180 +639,6 @@ export default function NewWorkoutScreen() {
     </KeyboardAvoidingView>
   );
 }
-
-// ─── ExerciseCard Component ───────────────────────────────────────────────────
-
-interface ExerciseCardProps {
-  exercise: ExerciseForm;
-  exerciseId: string;
-  index: number;
-  onUpdate: (id: string, field: keyof Omit<ExerciseForm, 'id'>, value: string) => void;
-  onRemoveId: string;
-  onRemoveExercise: (id: string) => void;
-  canRemove: boolean;
-  suggestions: string[];
-}
-
-const ExerciseCard = memo(({
-  exercise,
-  exerciseId,
-  index,
-  onUpdate,
-  onRemoveId,
-  onRemoveExercise,
-  canRemove,
-  suggestions,
-}: ExerciseCardProps) => {
-  const theme = useTheme();
-  const [nameFocused, setNameFocused] = useState(false);
-  const justSelectedRef = useRef(false);
-
-  const filteredSuggestions = useMemo(() => {
-    const q = exercise.name.trim().toLowerCase();
-    if (!q) return [];
-    return suggestions
-      .filter((s) => s.toLowerCase().includes(q))
-      .slice(0, 6);
-  }, [exercise.name, suggestions]);
-
-  const showSuggestions = nameFocused && exercise.name.trim().length > 0 && filteredSuggestions.length > 0;
-
-  return (
-    <Card
-      style={[
-        styles.card,
-        styles.exerciseCard,
-        { backgroundColor: theme.colors.surface },
-      ]}
-      mode="elevated"
-    >
-      <Card.Content style={styles.cardContent}>
-        {/* Header del card con número e icono eliminar */}
-        <View style={styles.exerciseHeader}>
-          <View style={styles.exerciseBadge}>
-            <Text
-              variant="labelLarge"
-              style={{ color: theme.colors.onPrimary, fontWeight: '700' }}
-            >
-              #{index + 1}
-            </Text>
-          </View>
-          <Text
-            variant="titleSmall"
-            style={{ flex: 1, color: theme.colors.onSurface, marginLeft: 8 }}
-          >
-            Ejercicio {index + 1}
-          </Text>
-          {canRemove && (
-            <IconButton
-              icon="delete-outline"
-              iconColor={theme.colors.error}
-              size={22}
-              onPress={() => onRemoveExercise(onRemoveId)}
-              style={styles.deleteBtn}
-            />
-          )}
-        </View>
-
-        <Divider style={styles.divider} />
-
-        {/* Nombre del ejercicio con autocompletado */}
-        <TextInput
-          mode="outlined"
-          label="Nombre del ejercicio *"
-          placeholder="ej. Press de banca, Sentadilla..."
-          value={exercise.name}
-          onChangeText={(t) => onUpdate(exerciseId, 'name', t)}
-          onFocus={() => setNameFocused(true)}
-          onBlur={() => {
-            if (!justSelectedRef.current) {
-              setNameFocused(false);
-            }
-            justSelectedRef.current = false;
-          }}
-          style={styles.input}
-          autoCapitalize="words"
-          returnKeyType="next"
-          left={<TextInput.Icon icon="magnify" />}
-        />
-        {showSuggestions && (
-          <Surface style={[styles.suggestionsContainer, { backgroundColor: theme.colors.surface }]} elevation={4}>
-            <View style={styles.suggestionsInner}>
-              {filteredSuggestions.map((suggestion) => (
-                <Chip
-                  key={suggestion}
-                  mode="flat"
-                  icon="dumbbell"
-                  onPress={() => {
-                    justSelectedRef.current = true;
-                    onUpdate(exerciseId, 'name', suggestion);
-                    setNameFocused(false);
-                  }}
-                  style={[styles.suggestionChip, { backgroundColor: theme.colors.secondaryContainer }]}
-                  textStyle={{ color: theme.colors.onSecondaryContainer, fontSize: 13 }}
-                >
-                  {suggestion}
-                </Chip>
-              ))}
-            </View>
-          </Surface>
-        )}
-
-        {/* Fila: Sets y Reps */}
-        <View style={styles.row}>
-          <TextInput
-            mode="outlined"
-            label="Series"
-            placeholder="4"
-            value={exercise.sets}
-            onChangeText={(t) => onUpdate(exerciseId, 'sets', t)}
-            keyboardType="numeric"
-            style={[styles.input, styles.flex1, styles.marginRight]}
-            returnKeyType="next"
-            left={<TextInput.Icon icon="repeat" />}
-          />
-          <TextInput
-            mode="outlined"
-            label="Reps"
-            placeholder="10"
-            value={exercise.reps}
-            onChangeText={(t) => onUpdate(exerciseId, 'reps', t)}
-            keyboardType="numeric"
-            style={[styles.input, styles.flex1, styles.marginLeft]}
-            returnKeyType="next"
-            left={<TextInput.Icon icon="counter" />}
-          />
-        </View>
-
-        {/* Fila: Peso y RPE */}
-        <View style={styles.row}>
-          <TextInput
-            mode="outlined"
-            label="Peso (kg)"
-            placeholder="80.0"
-            value={exercise.weight_kg}
-            onChangeText={(t) => onUpdate(exerciseId, 'weight_kg', t)}
-            keyboardType="decimal-pad"
-            style={[styles.input, styles.flex1, styles.marginRight]}
-            returnKeyType="next"
-            left={<TextInput.Icon icon="weight-kilogram" />}
-          />
-          <TextInput
-            mode="outlined"
-            label="RPE (1-10)"
-            placeholder="8"
-            value={exercise.rpe}
-            onChangeText={(t) => onUpdate(exerciseId, 'rpe', t)}
-            keyboardType="numeric"
-            style={[styles.input, styles.flex1, styles.marginLeft]}
-            returnKeyType="done"
-            left={<TextInput.Icon icon="gauge" />}
-          />
-        </View>
-      </Card.Content>
-    </Card>
-  );
-});
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -541,6 +704,44 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     fontSize: 15,
   },
+  helperText: {
+    marginTop: -6,
+    marginBottom: 4,
+    marginLeft: 8,
+  },
+  setsSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  setRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+    gap: 4,
+  },
+  setBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  setField: {
+    flex: 1,
+    fontSize: 14,
+  },
+  removeSetBtn: {
+    margin: 0,
+    marginLeft: 2,
+  },
+  addSetBtn: {
+    borderRadius: 14,
+    marginBottom: 4,
+    marginTop: 2,
+  },
   suggestionsContainer: {
     borderRadius: 14,
     marginBottom: 10,
@@ -555,19 +756,6 @@ const styles = StyleSheet.create({
   },
   suggestionChip: {
     borderRadius: 20,
-  },
-  row: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  flex1: {
-    flex: 1,
-  },
-  marginRight: {
-    marginRight: 4,
-  },
-  marginLeft: {
-    marginLeft: 4,
   },
   addButton: {
     borderRadius: 14,

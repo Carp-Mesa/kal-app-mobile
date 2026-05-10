@@ -5,6 +5,10 @@ export interface ProfileData {
   username?: string;
   full_name?: string;
   avatar_url?: string;
+  age?: number;
+  height?: number;
+  current_weight?: number;
+  body_fat_percentage?: number;
   weight_goal?: number;
   calorie_goal?: number;
   protein_goal?: number;
@@ -12,7 +16,6 @@ export interface ProfileData {
   fats_goal?: number;
   water_goal?: number;
   sleep_goal?: number;
-  current_weight?: number;
 }
 
 export const getProfile = async (): Promise<ProfileData> => {

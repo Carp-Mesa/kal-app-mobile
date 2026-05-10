@@ -17,6 +17,8 @@ export default function TabLayout() {
           borderTopWidth: 0,
           elevation: 8,
           shadowOpacity: 0.08,
+          height: 64,
+          paddingBottom: 8,
         },
         headerShown: true,
       }}
@@ -24,20 +26,29 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Dashboard',
+          title: 'Inicio',
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="view-dashboard-outline" color={color} size={size} />
+            <MaterialCommunityIcons name="home-outline" color={color} size={size} />
           ),
         }}
       />
       <Tabs.Screen
         name="workout"
         options={{
-          title: 'Gym',
+          title: 'Entrenamiento',
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="dumbbell" color={color} size={size} />
           ),
-          // El header del stack interno maneja el título de cada sub-pantalla
+          headerShown: false,
+        }}
+      />
+      <Tabs.Screen
+        name="progress"
+        options={{
+          title: 'Progreso',
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="chart-line" color={color} size={size} />
+          ),
           headerShown: false,
         }}
       />

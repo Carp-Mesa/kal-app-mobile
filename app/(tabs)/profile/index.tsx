@@ -1,7 +1,7 @@
 import { getProfile, updateProfile } from '@/src/services/profileService';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -12,36 +12,137 @@ import {
 import {
   ActivityIndicator,
   Button,
-  Card,
+  HelperText,
+  List,
   Snackbar,
   Text,
   TextInput,
   useTheme,
 } from 'react-native-paper';
+import { useAuthStore } from '@/src/store/useAuthStore';
 
-// ─── Component ───────────────────────────────────────────────────────────────
+// ─── Memoized Input (local state — zero lag) ─────────────────────────────────
+
+// ─── Input Filters ───────────────────────────────────────────────────────────
+
+const filterInteger = (text: string): string => text.replace(/[^0-9]/g, '');
+
+const filterDecimal = (text: string): string => {
+  let cleaned = text.replace(/[^0-9.]/g, '');
+  const parts = cleaned.split('.');
+  if (parts.length > 2) {
+    cleaned = parts[0] + '.' + parts.slice(1).join('');
+  }
+  return cleaned;
+};
+
+// ─── Memoized Input (local state — zero lag) ─────────────────────────────────
+
+interface FastInputProps {
+  label: string;
+  value: string;
+  onChangeText: (text: string) => void;
+  placeholder?: string;
+  keyboardType?: 'numeric' | 'decimal-pad' | 'default' | 'phone-pad';
+  style?: any;
+  left?: React.ReactNode;
+  dense?: boolean;
+  helperText?: string;
+  multiline?: boolean;
+  numberOfLines?: number;
+  autoCapitalize?: 'words' | 'sentences' | 'none';
+  returnKeyType?: 'done' | 'next';
+  filter?: 'integer' | 'decimal';
+}
+
+const FastInput = memo(function FastInput({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType = 'default',
+  style,
+  left,
+  dense = false,
+  helperText,
+  multiline,
+  numberOfLines,
+  autoCapitalize,
+  returnKeyType,
+  filter,
+}: FastInputProps) {
+  const [local, setLocal] = useState(value);
+  const focused = useRef(false);
+
+  useEffect(() => {
+    if (!focused.current) setLocal(value);
+  }, [value]);
+
+  const handleChange = (t: string) => {
+    let filtered = t;
+    if (filter === 'integer') filtered = filterInteger(t);
+    if (filter === 'decimal') filtered = filterDecimal(t);
+    setLocal(filtered);
+    focused.current = true;
+    onChangeText(filtered);
+  };
+
+  const input = (
+    <TextInput
+      mode="outlined"
+      label={label}
+      placeholder={placeholder}
+      value={local}
+      onChangeText={handleChange}
+      onFocus={() => { focused.current = true; }}
+      onBlur={() => {
+        focused.current = false;
+        setLocal(value);
+      }}
+      keyboardType={keyboardType}
+      style={style}
+      left={left}
+      dense={dense}
+      multiline={multiline}
+      numberOfLines={numberOfLines}
+      autoCapitalize={autoCapitalize}
+      returnKeyType={returnKeyType}
+    />
+  );
+
+  if (helperText) {
+    return (
+      <View>
+        {input}
+        <HelperText type="info" visible padding="none" style={styles.helperText}>
+          {helperText}
+        </HelperText>
+      </View>
+    );
+  }
+
+  return input;
+});
+
+// ─── Screen ──────────────────────────────────────────────────────────────────
 
 export default function ProfileScreen() {
   const theme = useTheme();
   const queryClient = useQueryClient();
-
-  // Guard: only hydrate the form once (on first successful load).
-  // Prevents overwriting active user edits on background refetches.
+  const clearTokens = useAuthStore(state => state.clearTokens);
   const isInitialized = useRef(false);
 
   const [snackbar, setSnackbar] = useState({ visible: false, message: '' });
 
-  // Form states
   const [fullName, setFullName] = useState('');
+  const [age, setAge] = useState('');
+  const [height, setHeight] = useState('');
   const [currentWeight, setCurrentWeight] = useState('');
+  const [bodyFatPercentage, setBodyFatPercentage] = useState('');
   const [weightGoal, setWeightGoal] = useState('');
   const [calorieGoal, setCalorieGoal] = useState('');
-  const [proteinGoal, setProteinGoal] = useState('');
-  const [carbsGoal, setCarbsGoal] = useState('');
-  const [fatsGoal, setFatsGoal] = useState('');
   const [waterGoal, setWaterGoal] = useState('');
-
-  // ── Queries and Mutations ──────────────────────────────────────────────────
+  const [sleepGoal, setSleepGoal] = useState('');
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ['profile'],
@@ -51,76 +152,65 @@ export default function ProfileScreen() {
   const updateMutation = useMutation({
     mutationFn: updateProfile,
     onSuccess: () => {
-      // Invalidar dashboard para que se recalculen los progresos
       queryClient.invalidateQueries({ queryKey: ['progressToday'] });
       queryClient.invalidateQueries({ queryKey: ['profile'] });
-      setSnackbar({ visible: true, message: 'Perfil y metas actualizados correctamente' });
+      setSnackbar({ visible: true, message: 'Perfil actualizado correctamente' });
     },
-    onError: (error) => {
+    onError: () => {
       setSnackbar({ visible: true, message: 'Error al actualizar el perfil' });
-      console.error(error);
     },
   });
 
-  // ── Effects ────────────────────────────────────────────────────────────────
-
   useEffect(() => {
     if (profile && !isInitialized.current) {
-      console.log('[Profile Load] Datos recibidos:', profile);
-
-      // Verify field names match DB schema: calorie_goal, protein_goal, etc.
       setFullName(profile.full_name ?? '');
+      setAge(profile.age?.toString() ?? '');
+      setHeight(profile.height?.toString() ?? '');
+      setCurrentWeight(profile.current_weight?.toString() ?? '');
+      setBodyFatPercentage(profile.body_fat_percentage?.toString() ?? '');
       setWeightGoal(profile.weight_goal?.toString() ?? '');
       setCalorieGoal(profile.calorie_goal?.toString() ?? '');
-      setProteinGoal(profile.protein_goal?.toString() ?? '');
-      setCarbsGoal(profile.carbs_goal?.toString() ?? '');
-      setFatsGoal(profile.fats_goal?.toString() ?? '');
       setWaterGoal(profile.water_goal?.toString() ?? '');
-      setCurrentWeight(profile.current_weight?.toString() ?? '');
-
+      setSleepGoal(profile.sleep_goal?.toString() ?? '');
       isInitialized.current = true;
     }
   }, [profile]);
 
-  // ── Actions ────────────────────────────────────────────────────────────────
-
   const calculateGoals = () => {
     const weight = parseFloat(currentWeight);
     if (isNaN(weight) || weight <= 0) {
-      setSnackbar({ visible: true, message: 'Ingresa un peso actual válido para calcular' });
+      setSnackbar({ visible: true, message: 'Ingresa un peso actual válido' });
       return;
     }
-
-    // Formulas based on weight (kg)
-    const suggestedWater = Math.round(weight * 35); // 35 ml per kg
-    const suggestedProtein = Math.round(weight * 2); // 2g per kg
-    const suggestedFats = Math.round(weight * 1); // 1g per kg
-    const suggestedCarbs = Math.round(weight * 4); // 4g per kg
-    const suggestedCalories = (suggestedProtein * 4) + (suggestedCarbs * 4) + (suggestedFats * 9);
+    const suggestedWater = Math.round(weight * 35);
+    const suggestedSleep = 8;
+    const bmr = 10 * weight + 6.25 * (parseFloat(height) || 170) - 5 * (parseInt(age) || 25) + 500;
+    const suggestedCalories = Math.round(bmr);
 
     setWaterGoal(suggestedWater.toString());
-    setProteinGoal(suggestedProtein.toString());
-    setFatsGoal(suggestedFats.toString());
-    setCarbsGoal(suggestedCarbs.toString());
     setCalorieGoal(suggestedCalories.toString());
-
-    setSnackbar({ visible: true, message: 'Metas sugeridas aplicadas. ¡No olvides guardar!' });
+    setSleepGoal(suggestedSleep.toString());
+    setSnackbar({ visible: true, message: 'Metas sugeridas aplicadas. ¡Guárdalas!' });
   };
 
   const handleSave = () => {
     updateMutation.mutate({
-      full_name: fullName.trim(),
+      full_name: fullName.trim() || undefined,
+      age: parseInt(age, 10) || undefined,
+      height: parseFloat(height) || undefined,
+      current_weight: parseFloat(currentWeight) || undefined,
+      body_fat_percentage: parseFloat(bodyFatPercentage) || undefined,
       weight_goal: parseFloat(weightGoal) || undefined,
       calorie_goal: parseInt(calorieGoal, 10) || undefined,
-      protein_goal: parseInt(proteinGoal, 10) || undefined,
-      carbs_goal: parseInt(carbsGoal, 10) || undefined,
-      fats_goal: parseInt(fatsGoal, 10) || undefined,
       water_goal: parseInt(waterGoal, 10) || undefined,
-      current_weight: parseFloat(currentWeight) || undefined,
+      sleep_goal: parseFloat(sleepGoal) || undefined,
     });
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  const handleLogout = () => {
+    clearTokens();
+    router.replace('/(auth)/login');
+  };
 
   if (isLoading) {
     return (
@@ -142,122 +232,173 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Text variant="headlineSmall" style={[styles.title, { color: theme.colors.onBackground }]}>
-          Ajustes de Perfil
+          Perfil
         </Text>
-        <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 16 }}>
-          Personaliza tu información y metas diarias.
+        <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 8 }}>
+          Personaliza tu información y objetivos.
         </Text>
 
-        <Card style={styles.card} mode="elevated">
-          <Card.Content style={styles.cardContent}>
-            <Text variant="titleMedium" style={[styles.cardTitle, { color: theme.colors.primary }]}>
-              👤 Información Personal
-            </Text>
-            <TextInput
-              mode="outlined"
-              label="Nombre Completo"
-              value={fullName}
-              onChangeText={setFullName}
-              style={styles.input}
-              left={<TextInput.Icon icon="account-outline" />}
+        {/* ── Información Personal ──────────────────────────────── */}
+        <List.Section>
+          <List.Subheader style={[styles.sectionHeader, { color: theme.colors.primary }]}>
+            👤 Información Personal
+          </List.Subheader>
+          <FastInput
+            label="Nombre"
+            value={fullName}
+            onChangeText={setFullName}
+            placeholder="Tu nombre"
+            style={styles.input}
+            left={<TextInput.Icon icon="account-outline" />}
+            dense
+          />
+          <View style={styles.row}>
+            <FastInput
+            label="Edad"
+            value={age}
+            onChangeText={setAge}
+            placeholder="25"
+            keyboardType="numeric"
+            filter="integer"
+              style={[styles.input, styles.flex1, { marginRight: 8 }]}
+              left={<TextInput.Icon icon="calendar-outline" />}
+              dense
             />
-            <View style={styles.row}>
-              <TextInput
-                mode="outlined"
-                label="Peso Actual (kg)"
-                value={currentWeight}
-                onChangeText={setCurrentWeight}
-                keyboardType="numeric"
-                style={[styles.input, styles.flex1, { marginRight: 8 }]}
-                left={<TextInput.Icon icon="weight-kilogram" />}
-              />
-              <TextInput
-                mode="outlined"
-                label="Meta de Peso (kg)"
-                value={weightGoal}
-                onChangeText={setWeightGoal}
-                keyboardType="numeric"
-                style={[styles.input, styles.flex1]}
-                left={<TextInput.Icon icon="target" />}
-              />
-            </View>
-          </Card.Content>
-        </Card>
-
-        <Card style={styles.card} mode="elevated">
-          <Card.Content style={styles.cardContent}>
-            <View style={styles.headerRow}>
-              <Text variant="titleMedium" style={[styles.cardTitle, { color: theme.colors.primary, marginBottom: 0 }]}>
-                🎯 Metas Diarias
-              </Text>
-              <Button
-                mode="text"
-                compact
-                icon="calculator"
-                onPress={calculateGoals}
-                labelStyle={{ fontSize: 13 }}
-              >
-                Autocalcular
-              </Button>
-            </View>
-            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}>
-              Las sugerencias se basan en tu peso actual.
-            </Text>
-
-            <TextInput
-              mode="outlined"
-              label="Calorías Diarias (kcal)"
-              value={calorieGoal}
-              onChangeText={setCalorieGoal}
-              keyboardType="numeric"
-              style={styles.input}
-              left={<TextInput.Icon icon="fire" />}
+            <FastInput
+            label="Altura (cm)"
+            value={height}
+            onChangeText={setHeight}
+            placeholder="170"
+            keyboardType="numeric"
+            style={[styles.input, styles.flex1]}
+            left={<TextInput.Icon icon="human-male-height" />}
+            dense
+            filter="integer"
+            helperText="En centímetros"
             />
-            
-            <View style={styles.row}>
-              <TextInput
-                mode="outlined"
-                label="Proteínas (g)"
-                value={proteinGoal}
-                onChangeText={setProteinGoal}
-                keyboardType="numeric"
-                style={[styles.input, styles.flex1, { marginRight: 8 }]}
-                left={<TextInput.Icon icon="food-drumstick-outline" />}
-              />
-              <TextInput
-                mode="outlined"
-                label="Agua (ml)"
-                value={waterGoal}
-                onChangeText={setWaterGoal}
-                keyboardType="numeric"
-                style={[styles.input, styles.flex1]}
-                left={<TextInput.Icon icon="cup-water" />}
-              />
-            </View>
+          </View>
+        </List.Section>
 
-            <View style={styles.row}>
-              <TextInput
-                mode="outlined"
-                label="Carbohidratos (g)"
-                value={carbsGoal}
-                onChangeText={setCarbsGoal}
-                keyboardType="numeric"
-                style={[styles.input, styles.flex1, { marginRight: 8 }]}
-                left={<TextInput.Icon icon="bread-slice-outline" />}
-              />
-              <TextInput
-                mode="outlined"
-                label="Grasas (g)"
-                value={fatsGoal}
-                onChangeText={setFatsGoal}
-                keyboardType="numeric"
-                style={[styles.input, styles.flex1]}
-                left={<TextInput.Icon icon="cheese" />}
-              />
-            </View>
+        {/* ── Composición Corporal ──────────────────────────────── */}
+        <List.Section>
+          <List.Subheader style={[styles.sectionHeader, { color: theme.colors.primary }]}>
+            💪 Composición Corporal
+          </List.Subheader>
+          <View style={styles.row}>
+            <FastInput
+            label="Peso Actual (kg)"
+            value={currentWeight}
+            onChangeText={setCurrentWeight}
+            placeholder="75"
+            keyboardType="decimal-pad"
+            filter="decimal"
+            style={[styles.input, styles.flex1, { marginRight: 8 }]}
+              left={<TextInput.Icon icon="weight-kilogram" />}
+              dense
+            />
+            <FastInput
+            label="% Grasa"
+            value={bodyFatPercentage}
+            onChangeText={setBodyFatPercentage}
+            placeholder="18"
+            keyboardType="decimal-pad"
+            filter="decimal"
+            style={[styles.input, styles.flex1]}
+            left={<TextInput.Icon icon="percent-outline" />}
+            dense
+            helperText="Porcentaje de grasa corporal"
+            />
+          </View>
+          <FastInput
+            label="Peso Meta (kg)"
+            value={weightGoal}
+            onChangeText={setWeightGoal}
+            placeholder="70"
+            keyboardType="decimal-pad"
+            filter="decimal"
+            style={styles.input}
+            left={<TextInput.Icon icon="target" />}
+            dense
+          />
+        </List.Section>
 
-          </Card.Content>
-        </Card>
+        {/* ── Metas Diarias ─────────────────────────────────────── */}
+        <List.Section>
+          <View style={styles.sectionHeaderRow}>
+            <List.Subheader style={[styles.sectionHeader, { color: theme.colors.primary, marginBottom: 0 }]}>
+              🎯 Metas Diarias
+            </List.Subheader>
+            <Button
+              mode="text"
+              compact
+              icon="calculator"
+              onPress={calculateGoals}
+              labelStyle={{ fontSize: 13 }}
+            >
+              Autocalcular
+            </Button>
+          </View>
+          <HelperText type="info" visible padding="none" style={styles.helperText}>
+            Basado en tu peso y composición
+          </HelperText>
+          <FastInput
+            label="Calorías (kcal)"
+            value={calorieGoal}
+            onChangeText={setCalorieGoal}
+            placeholder="2500"
+            keyboardType="numeric"
+            filter="integer"
+            style={styles.input}
+            left={<TextInput.Icon icon="fire" />}
+            dense
+          />
+          <View style={styles.row}>
+            <FastInput
+            label="Agua (ml)"
+            value={waterGoal}
+            onChangeText={setWaterGoal}
+            placeholder="2000"
+            keyboardType="numeric"
+            filter="integer"
+              style={[styles.input, styles.flex1, { marginRight: 8 }]}
+              left={<TextInput.Icon icon="cup-water" />}
+              dense
+            />
+            <FastInput
+            label="Sueño (h)"
+            value={sleepGoal}
+            onChangeText={setSleepGoal}
+            placeholder="8"
+            keyboardType="decimal-pad"
+            filter="decimal"
+              style={[styles.input, styles.flex1]}
+              left={<TextInput.Icon icon="bed" />}
+              dense
+              helperText="Horas objetivo"
+            />
+          </View>
+        </List.Section>
+
+        {/* ── Ajustes ────────────────────────────────────────────── */}
+        <List.Section>
+          <List.Subheader style={[styles.sectionHeader, { color: theme.colors.primary }]}>
+            ⚙️ Ajustes
+          </List.Subheader>
+          <List.Item
+            title="Historial Nutricional"
+            description="Revisa tu progreso semanal"
+            left={props => <List.Icon {...props} icon="chart-bar" />}
+            onPress={() => router.push('/(tabs)/profile/history')}
+            style={styles.listItem}
+          />
+          <List.Item
+            title="Historial de Entrenamientos"
+            description="Tus rutinas pasadas"
+            left={props => <List.Icon {...props} icon="dumbbell" />}
+            onPress={() => router.push('/(tabs)/workout/history')}
+            style={styles.listItem}
+          />
+        </List.Section>
 
         <Button
           mode="contained"
@@ -270,15 +411,18 @@ export default function ProfileScreen() {
         >
           Guardar Cambios
         </Button>
+
+        {/* Logout at bottom */}
         <Button
-          mode="outlined"
-          icon="chart-bar"
-          onPress={() => router.push('/(tabs)/profile/history')}
-          style={styles.historyButton}
-          contentStyle={styles.saveButtonContent}
-          labelStyle={{ fontSize: 16 }}
+          mode="text"
+          icon="logout"
+          onPress={handleLogout}
+          style={[styles.logoutButton, { marginTop: 8 }]}
+          textColor={theme.colors.error}
+          contentStyle={{ height: 48 }}
+          labelStyle={{ fontSize: 14 }}
         >
-          Ver Historial Nutricional
+          Cerrar Sesión
         </Button>
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -295,8 +439,6 @@ export default function ProfileScreen() {
   );
 }
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
   center: {
     flex: 1,
@@ -311,25 +453,24 @@ const styles = StyleSheet.create({
   title: {
     fontWeight: 'bold',
   },
-  card: {
-    borderRadius: 16,
-    marginBottom: 16,
-  },
-  cardContent: {
-    padding: 16,
-  },
-  cardTitle: {
+  sectionHeader: {
+    fontSize: 14,
     fontWeight: '700',
-    marginBottom: 12,
+    letterSpacing: 0.5,
   },
-  headerRow: {
+  sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 4,
   },
   input: {
-    marginBottom: 12,
+    marginBottom: 10,
+  },
+  helperText: {
+    marginTop: -6,
+    marginBottom: 6,
+    marginLeft: 8,
   },
   row: {
     flexDirection: 'row',
@@ -338,15 +479,19 @@ const styles = StyleSheet.create({
   flex1: {
     flex: 1,
   },
+  listItem: {
+    borderRadius: 12,
+    marginVertical: 2,
+  },
   saveButton: {
     borderRadius: 14,
-    marginTop: 8,
-  },
-  historyButton: {
-    borderRadius: 14,
-    marginTop: 10,
+    marginTop: 12,
   },
   saveButtonContent: {
     height: 52,
+  },
+  logoutButton: {
+    borderRadius: 14,
+    marginTop: 4,
   },
 });

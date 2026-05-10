@@ -2,17 +2,20 @@ import apiClient from './apiClient';
 
 // --- Interfaces ---
 
-export interface ExercisePayload {
-  name: string;
-  sets: number;
+export interface SetEntry {
   reps: number;
   weight_kg: number;
-  rpe: number;
+}
+
+export interface ExercisePayload {
+  name: string;
+  sets: SetEntry[];
+  rpe?: number;
 }
 
 export interface CreateWorkoutPayload {
   name: string;
-  date: string; // 'YYYY-MM-DD' — siempre en zona horaria local, nunca .toISOString()
+  date: string;
   notes?: string;
   duration_mins?: number;
   exercises: ExercisePayload[];
@@ -28,9 +31,8 @@ export interface WorkoutResponse {
 export interface WorkoutExercise {
   id: string;
   name: string;
-  sets: number;
-  reps: number;
-  weight_kg: number;
+  sets?: SetEntry[];
+  exercise_sets?: SetEntry[];
   rpe?: number;
 }
 
@@ -55,11 +57,6 @@ export interface WorkoutHistoryResponse {
 
 // --- Service ---
 
-/**
- * Crea un nuevo entrenamiento con sus ejercicios.
- * Llama al endpoint que internamente ejecuta el RPC de Supabase
- * con rollback lógico para garantizar la integridad de los datos.
- */
 export const createWorkout = async (
   payload: CreateWorkoutPayload
 ): Promise<WorkoutResponse> => {
@@ -67,9 +64,6 @@ export const createWorkout = async (
   return response.data;
 };
 
-/**
- * Obtiene el historial de entrenamientos del usuario con paginación.
- */
 export const getWorkoutHistory = async (
   limit = 10,
   offset = 0
@@ -80,10 +74,6 @@ export const getWorkoutHistory = async (
   return response.data;
 };
 
-/**
- * Obtiene el detalle completo de un entrenamiento por su ID.
- * Retorna metadatos del entrenamiento y el array de ejercicios anidado.
- */
 export const getWorkoutDetail = async (
   id: string
 ): Promise<WorkoutHistoryItem> => {
@@ -91,11 +81,16 @@ export const getWorkoutDetail = async (
   return response.data;
 };
 
-/**
- * Obtiene la lista de sugerencias de nombres de ejercicios.
- * Retorna un array simple de strings con los nombres más usados.
- */
 export const getExerciseSuggestions = async (): Promise<string[]> => {
   const response = await apiClient.get<string[]>('/workout/exercises/suggestions');
   return response.data;
+};
+
+// --- Helpers ---
+
+/**
+ * Normaliza el campo de series: el backend puede devolverlo como `.sets` o `.exercise_sets`.
+ */
+export const resolveSets = (exercise: WorkoutExercise): SetEntry[] => {
+  return exercise.sets || exercise.exercise_sets || [];
 };

@@ -1,5 +1,5 @@
 import { useWorkoutDetail } from '@/src/hooks/useWorkoutDetail';
-import { WorkoutExercise } from '@/src/services/workoutService';
+import { resolveSets, SetEntry, WorkoutExercise } from '@/src/services/workoutService';
 import { useLocalSearchParams, router } from 'expo-router';
 import React from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
@@ -38,6 +38,16 @@ const formatDate = (dateStr: string): string => {
   });
 };
 
+const formatSets = (sets: SetEntry[]): string => {
+  if (sets.length === 0) return '0 series';
+  const firstReps = sets[0].reps || 0;
+  const allSameReps = sets.every((s) => s.reps === firstReps);
+  if (allSameReps) {
+    return `${sets.length} × ${firstReps}`;
+  }
+  return sets.map((s) => `${s.reps || 0}`).join(', ');
+};
+
 interface ExerciseCardProps {
   exercise: WorkoutExercise;
   index: number;
@@ -45,6 +55,8 @@ interface ExerciseCardProps {
 
 function ExerciseCard({ exercise, index }: ExerciseCardProps) {
   const theme = useTheme();
+  const sets = resolveSets(exercise);
+  const setCount = sets.length;
 
   return (
     <Card style={styles.exerciseCard} mode="elevated">
@@ -64,6 +76,25 @@ function ExerciseCard({ exercise, index }: ExerciseCardProps) {
           </Text>
         </View>
 
+        {/* Sets detail */}
+        <View style={styles.setsContainer}>
+          {sets.map((set, sIdx) => (
+            <View key={sIdx} style={styles.setRow}>
+              <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, width: 28 }}>
+                S{sIdx + 1}
+              </Text>
+              <Text variant="bodySmall" style={{ color: theme.colors.onSurface, fontWeight: '600' }}>
+                {set.reps || 0} reps
+              </Text>
+              {(set.weight_kg || 0) > 0 && (
+                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                  {' '}@ {set.weight_kg || 0} kg
+                </Text>
+              )}
+            </View>
+          ))}
+        </View>
+
         <View style={styles.chipsRow}>
           <Chip
             icon="repeat"
@@ -72,20 +103,8 @@ function ExerciseCard({ exercise, index }: ExerciseCardProps) {
             style={[styles.metricChip, { borderColor: theme.colors.primaryContainer }]}
             textStyle={{ color: theme.colors.onPrimaryContainer, fontSize: 13, fontWeight: '600' }}
           >
-            {`${exercise.sets}×${exercise.reps}`}
+            {setCount === 0 ? '0 series' : `${setCount} × ${sets[0]?.reps || 0}`}
           </Chip>
-
-          {exercise.weight_kg > 0 && (
-            <Chip
-              icon="weight-kilogram"
-              compact
-              mode="outlined"
-              style={[styles.metricChip, { borderColor: theme.colors.tertiaryContainer }]}
-              textStyle={{ color: theme.colors.onTertiaryContainer, fontSize: 13, fontWeight: '600' }}
-            >
-              {`${exercise.weight_kg} kg`}
-            </Chip>
-          )}
 
           {exercise.rpe !== undefined && exercise.rpe > 0 && (
             <Chip
@@ -144,7 +163,6 @@ export default function WorkoutDetailScreen() {
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
     >
-      {/* ── Back + Header ──────────────────────────────────────── */}
       <View style={styles.headerNav}>
         <IconButton
           icon="arrow-left"
@@ -191,7 +209,6 @@ export default function WorkoutDetailScreen() {
         </View>
       </Surface>
 
-      {/* ── Notes ─────────────────────────────────────────────── */}
       {workout.notes && (
         <Card style={styles.notesCard} mode="outlined">
           <Card.Content style={styles.notesContent}>
@@ -205,7 +222,6 @@ export default function WorkoutDetailScreen() {
         </Card>
       )}
 
-      {/* ── Exercises ───────────────────────────────────────────── */}
       {workout.exercises.length > 0 && (
         <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.onBackground }]}>
           💪 Ejercicios
@@ -299,6 +315,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  setsContainer: {
+    marginBottom: 8,
+    gap: 4,
+  },
+  setRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   chipsRow: {
     flexDirection: 'row',

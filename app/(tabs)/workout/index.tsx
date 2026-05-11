@@ -9,11 +9,10 @@ import {
   Card,
   Chip,
   Divider,
-  FAB,
   Icon,
   Surface,
   Text,
-  useTheme,
+  useTheme
 } from 'react-native-paper';
 
 const formatSetsCompact = (sets: SetEntry[]): string => {
@@ -187,15 +186,6 @@ export default function WorkoutIndexScreen() {
         }
         showsVerticalScrollIndicator={false}
       />
-
-      <FAB
-        icon="plus"
-        label="Nueva Rutina"
-        onPress={() => router.push('/(tabs)/workout/new')}
-        style={[styles.fab, { backgroundColor: theme.colors.primary }]}
-        color={theme.colors.onPrimary}
-        size="medium"
-      />
     </View>
   );
 }
@@ -217,5 +207,4 @@ const styles = StyleSheet.create({
   emptyTitle: { fontWeight: '700', textAlign: 'center', marginBottom: 10 },
   emptySubtitle: { textAlign: 'center', lineHeight: 22 },
   loadMoreBtn: { borderRadius: 14, marginHorizontal: 32, marginTop: 8 },
-  fab: { position: 'absolute', right: 16, bottom: 24, borderRadius: 16 },
 });

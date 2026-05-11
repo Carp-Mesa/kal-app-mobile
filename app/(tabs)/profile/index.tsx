@@ -11,7 +11,10 @@ import {
 } from 'react-native';
 import {
   ActivityIndicator,
+  Avatar,
   Button,
+  Card,
+  Divider,
   HelperText,
   List,
   Snackbar,
@@ -231,18 +234,25 @@ export default function ProfileScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text variant="headlineSmall" style={[styles.title, { color: theme.colors.onBackground }]}>
-          Perfil
-        </Text>
-        <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 8 }}>
-          Personaliza tu información y objetivos.
-        </Text>
+        <View style={styles.headerProfile}>
+          <Avatar.Text size={64} label={fullName ? fullName.substring(0,2).toUpperCase() : 'ME'} style={{ backgroundColor: theme.colors.primaryContainer }} color={theme.colors.onPrimaryContainer} />
+          <View style={styles.headerProfileText}>
+            <Text variant="headlineSmall" style={[styles.title, { color: theme.colors.onBackground }]}>
+              {fullName || 'Mi Perfil'}
+            </Text>
+            <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+              Personaliza tu información y objetivos.
+            </Text>
+          </View>
+        </View>
 
         {/* ── Información Personal ──────────────────────────────── */}
-        <List.Section>
-          <List.Subheader style={[styles.sectionHeader, { color: theme.colors.primary }]}>
-            👤 Información Personal
-          </List.Subheader>
+        <Card style={styles.card} mode="elevated">
+          <Card.Content style={styles.cardContent}>
+            <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
+              👤 Información Personal
+            </Text>
+            <Divider style={styles.divider} />
           <FastInput
             label="Nombre"
             value={fullName}
@@ -277,13 +287,16 @@ export default function ProfileScreen() {
             helperText="En centímetros"
             />
           </View>
-        </List.Section>
+          </Card.Content>
+        </Card>
 
         {/* ── Composición Corporal ──────────────────────────────── */}
-        <List.Section>
-          <List.Subheader style={[styles.sectionHeader, { color: theme.colors.primary }]}>
-            💪 Composición Corporal
-          </List.Subheader>
+        <Card style={styles.card} mode="elevated">
+          <Card.Content style={styles.cardContent}>
+            <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
+              💪 Composición Corporal
+            </Text>
+            <Divider style={styles.divider} />
           <View style={styles.row}>
             <FastInput
             label="Peso Actual (kg)"
@@ -320,14 +333,16 @@ export default function ProfileScreen() {
             left={<TextInput.Icon icon="target" />}
             dense
           />
-        </List.Section>
+          </Card.Content>
+        </Card>
 
         {/* ── Metas Diarias ─────────────────────────────────────── */}
-        <List.Section>
-          <View style={styles.sectionHeaderRow}>
-            <List.Subheader style={[styles.sectionHeader, { color: theme.colors.primary, marginBottom: 0 }]}>
-              🎯 Metas Diarias
-            </List.Subheader>
+        <Card style={styles.card} mode="elevated">
+          <Card.Content style={styles.cardContent}>
+            <View style={styles.sectionHeaderRow}>
+              <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary, marginBottom: 0 }]}>
+                🎯 Metas Diarias
+              </Text>
             <Button
               mode="text"
               compact
@@ -377,13 +392,16 @@ export default function ProfileScreen() {
               helperText="Horas objetivo"
             />
           </View>
-        </List.Section>
+          </Card.Content>
+        </Card>
 
         {/* ── Ajustes ────────────────────────────────────────────── */}
-        <List.Section>
-          <List.Subheader style={[styles.sectionHeader, { color: theme.colors.primary }]}>
-            ⚙️ Ajustes
-          </List.Subheader>
+        <Card style={styles.card} mode="elevated">
+          <Card.Content style={styles.cardContent}>
+            <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.primary }]}>
+              ⚙️ Ajustes
+            </Text>
+            <Divider style={styles.divider} />
           <List.Item
             title="Historial Nutricional"
             description="Revisa tu progreso semanal"
@@ -398,7 +416,8 @@ export default function ProfileScreen() {
             onPress={() => router.push('/(tabs)/workout/history')}
             style={styles.listItem}
           />
-        </List.Section>
+          </Card.Content>
+        </Card>
 
         <Button
           mode="contained"
@@ -453,10 +472,32 @@ const styles = StyleSheet.create({
   title: {
     fontWeight: 'bold',
   },
-  sectionHeader: {
-    fontSize: 14,
+  headerProfile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    marginTop: 8,
+    gap: 16,
+  },
+  headerProfileText: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  card: {
+    borderRadius: 16,
+    marginBottom: 16,
+    elevation: 2,
+  },
+  cardContent: {
+    padding: 16,
+    paddingTop: 12,
+  },
+  sectionTitle: {
     fontWeight: '700',
-    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  divider: {
+    marginBottom: 16,
   },
   sectionHeaderRow: {
     flexDirection: 'row',

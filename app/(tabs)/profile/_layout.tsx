@@ -8,7 +8,7 @@ export default function ProfileLayout() {
         name="index"
         options={{
           title: 'Perfil y Metas',
-          headerShown: true,
+          headerShown: false,
         }}
       />
       <Stack.Screen

@@ -4,8 +4,9 @@ import { useTodaySleep } from '@/src/hooks/useSleep';
 import { useWeeklyStats } from '@/src/hooks/useWeeklyStats';
 import api from '@/src/services/apiClient';
 import { getProfile } from '@/src/services/profileService';
+import { useIsFocused } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
-import { router } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Dimensions,
@@ -31,7 +32,7 @@ import {
 } from 'react-native-paper';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const CHART_WIDTH = SCREEN_WIDTH - 40;
+const CHART_WIDTH = SCREEN_WIDTH - 72;
 
 const fetchProgress = async () => {
   try {
@@ -120,7 +121,7 @@ const FastInput = memo(function FastInput({
   };
 
   return (
-    <View>
+    <View style={[{ flex: style?.flex }, style?.marginRight !== undefined ? { marginRight: style.marginRight } : {}, style?.marginLeft !== undefined ? { marginLeft: style.marginLeft } : {}, style?.marginHorizontal !== undefined ? { marginHorizontal: style.marginHorizontal } : {}]}>
       <TextInput
         mode="outlined"
         label={label}
@@ -130,7 +131,7 @@ const FastInput = memo(function FastInput({
         onFocus={() => { focused.current = true; }}
         onBlur={() => { focused.current = false; setLocal(value); }}
         keyboardType={keyboardType}
-        style={style}
+        style={[style, { flex: undefined, marginRight: undefined, marginLeft: undefined, marginHorizontal: undefined }]}
         left={left}
         dense={dense}
       />
@@ -226,11 +227,15 @@ const TrendsSection = memo(function TrendsSection() {
   const chartConfig = {
     backgroundGradientFrom: theme.colors.surface,
     backgroundGradientTo: theme.colors.surface,
-    color: (opacity = 1) => `rgba(0, 97, 255, ${opacity})`,
+    fillShadowGradientFrom: theme.colors.primary,
+    fillShadowGradientFromOpacity: 0.3,
+    fillShadowGradientTo: theme.colors.primary,
+    fillShadowGradientToOpacity: 0.05,
+    color: (opacity = 1) => theme.colors.primary,
     labelColor: () => theme.colors.onSurfaceVariant,
-    strokeWidth: 3,
+    strokeWidth: 4,
     decimalPlaces: 0,
-    propsForDots: { r: '5', strokeWidth: '2', stroke: theme.colors.primary },
+    propsForDots: { r: '4', strokeWidth: '2', stroke: theme.colors.surface, fill: theme.colors.primary },
     propsForBackgroundLines: { strokeDasharray: '4', strokeWidth: 1, stroke: theme.colors.outlineVariant },
   };
 
@@ -263,6 +268,8 @@ const TrendsSection = memo(function TrendsSection() {
 // ─── Dashboard ──────────────────────────────────────────────────────────────
 
 export default function DashboardScreen() {
+  const pathname = usePathname();
+  const hideFab = pathname === '/workout/new';
   const theme = useTheme();
   const { data, isLoading, refetch } = useQuery({ queryKey: ['progressToday'], queryFn: fetchProgress });
   const { data: profile } = useQuery({ queryKey: ['profile'], queryFn: getProfile });
@@ -434,7 +441,7 @@ export default function DashboardScreen() {
       <Portal>
         <FAB.Group
           open={fabOpen}
-          visible
+          visible={!hideFab}
           icon={fabOpen ? 'close' : 'plus'}
           actions={[
             { icon: 'bed', label: 'Sueño', onPress: () => setModalVisible('sleep') },
@@ -588,7 +595,7 @@ const styles = StyleSheet.create({
   fabGroup: {
     position: 'absolute',
     right: 0,
-    bottom: 44, // raised 20px above default to avoid tab bar
+    bottom: 60, // raised further to avoid tab bar
   },
   fab: {
     borderRadius: 16,

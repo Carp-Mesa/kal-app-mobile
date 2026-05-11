@@ -1,29 +1,15 @@
 import { useWorkoutHistory } from '@/src/hooks/useWorkoutHistory';
-import { resolveSets, SetEntry, WorkoutHistoryItem } from '@/src/services/workoutService';
+import { resolveSets, WorkoutHistoryItem } from '@/src/services/workoutService';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 import {
   ActivityIndicator,
   Button,
-  Card,
-  Chip,
-  Divider,
-  Icon,
-  Surface,
   Text,
   useTheme
 } from 'react-native-paper';
-
-const formatSetsCompact = (sets: SetEntry[]): string => {
-  if (sets.length === 0) return '0 series';
-  const firstReps = sets[0].reps || 0;
-  const allSameReps = sets.every((s) => s.reps === firstReps);
-  if (allSameReps) {
-    return `${sets.length}×${firstReps}`;
-  }
-  return sets.map((s) => `${s.reps || 0}`).join('/');
-};
 
 const formatDate = (dateStr: string): string => {
   const [year, month, day] = dateStr.split('-');
@@ -31,7 +17,31 @@ const formatDate = (dateStr: string): string => {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
-  });
+  }).replace(/^\w/, c => c.toUpperCase());
+};
+
+const FilterTabs = ({ selected, onSelect, theme }: any) => {
+  const tabs = ['Esta semana', 'Mes', 'Ver todo'];
+  return (
+    <View style={[styles.filterContainer, { backgroundColor: theme.dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+      {tabs.map((tab, idx) => {
+        const isActive = selected === tab;
+        return (
+          <React.Fragment key={tab}>
+            <Pressable 
+              onPress={() => onSelect(tab)}
+              style={[styles.filterTab, isActive && { backgroundColor: theme.colors.primary }]}
+            >
+              <Text style={[styles.filterTabText, { color: theme.dark ? '#aaa' : '#666' }, isActive && { color: theme.colors.background, fontWeight: 'bold' }]}>
+                {tab}
+              </Text>
+            </Pressable>
+            {idx < tabs.length - 1 && <View style={[styles.filterDivider, { backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]} />}
+          </React.Fragment>
+        )
+      })}
+    </View>
+  );
 };
 
 interface WorkoutCardProps {
@@ -44,83 +54,132 @@ function WorkoutCard({ item }: WorkoutCardProps) {
   const exerciseCount = item.exercises?.length ?? 0;
 
   return (
-    <Card style={styles.card} mode="elevated" onPress={() => setExpanded(e => !e)}>
-      <Card.Content style={styles.cardContent}>
-        <View style={styles.cardHeader}>
-          <View style={{ flex: 1 }}>
-            <Text variant="titleMedium" style={{ fontWeight: '700', color: theme.colors.onSurface }} numberOfLines={1} adjustsFontSizeToFit>
-              {item.name}
-            </Text>
-            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 2, textTransform: 'capitalize' }}>
-              {formatDate(item.date)}
+    <Pressable 
+      style={[
+        styles.card, 
+        { 
+          backgroundColor: theme.dark ? '#1c1c1e' : theme.colors.surface,
+          borderColor: theme.colors.primary,
+          borderWidth: 1,
+          borderRadius: 16,
+        }
+      ]} 
+      onPress={() => setExpanded(e => !e)}
+    >
+      <View style={styles.cardHeader}>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.cardTitle, { color: theme.colors.onSurface }]}>
+            {item.name}
+          </Text>
+          <Text style={[styles.cardSubtitle, { color: theme.colors.onSurfaceVariant }]}>
+            {formatDate(item.date)}
+          </Text>
+        </View>
+        <View style={styles.cardChips}>
+          <View style={[styles.greenChip, { backgroundColor: 'rgba(204, 255, 0, 0.15)' }]}>
+            <Text style={[styles.greenChipText, { color: theme.colors.primary }]}>
+              {exerciseCount} {exerciseCount === 1 ? 'ejercicio' : 'ejercicios'}
             </Text>
           </View>
-          <Icon source={expanded ? 'chevron-up' : 'chevron-down'} size={22} color={theme.colors.primary} />
-        </View>
-
-        <View style={styles.chipsRow}>
-          <Chip icon="dumbbell" compact style={[styles.chip, { backgroundColor: theme.colors.secondaryContainer }]} textStyle={{ color: theme.colors.onSecondaryContainer, fontSize: 12 }}>
-            {`${exerciseCount} ${exerciseCount === 1 ? 'ejercicio' : 'ejercicios'}`}
-          </Chip>
           {item.duration_mins !== undefined && item.duration_mins > 0 && (
-            <Chip icon="timer-outline" compact style={[styles.chip, { backgroundColor: theme.colors.tertiaryContainer }]} textStyle={{ color: theme.colors.onTertiaryContainer, fontSize: 12 }}>
-              {`${item.duration_mins} mins`}
-            </Chip>
+            <View style={[styles.greenChip, { backgroundColor: 'rgba(204, 255, 0, 0.15)' }]}>
+              <Text style={[styles.greenChipText, { color: theme.colors.primary }]}>{item.duration_mins} mins</Text>
+            </View>
           )}
+          <MaterialCommunityIcons name={expanded ? "chevron-up" : "chevron-down"} color={theme.colors.onSurfaceVariant} size={24} style={{ marginLeft: 4 }} />
         </View>
+      </View>
 
-        {expanded && exerciseCount > 0 && (
-          <Surface style={[styles.detailSurface, { backgroundColor: theme.colors.surfaceVariant }]} elevation={0}>
-            <Divider style={{ marginBottom: 8 }} />
-            {item.exercises.map((ex, idx) => {
-              const sets = resolveSets(ex);
-              return (
-                <View key={ex.id || idx} style={styles.exerciseRow}>
-                  <View style={styles.exerciseIndex}>
-                    <Text variant="labelSmall" style={{ color: theme.colors.primary, fontWeight: '700' }}>{idx + 1}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text variant="bodyMedium" style={{ fontWeight: '600', color: theme.colors.onSurface }} numberOfLines={1} adjustsFontSizeToFit>
-                      {ex.name}
-                    </Text>
-                    <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                      {formatSetsCompact(sets)}
-                      {ex.rpe ? ` · RPE ${ex.rpe}` : ''}
-                    </Text>
-                    {sets.length > 0 && (
-                      <View style={styles.setsRow}>
-                        {sets.map((s, sIdx) => (
-                          <Text key={sIdx} variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                            S{sIdx + 1}: {(s.reps || 0)}@{(s.weight_kg || 0)}kg{sIdx < sets.length - 1 ? ' · ' : ''}
-                          </Text>
-                        ))}
+      {expanded && exerciseCount > 0 && (
+        <View style={styles.detailsContainer}>
+          {item.exercises.map((ex, idx) => {
+            const sets = resolveSets(ex);
+            const isConsistent = sets.length > 0 && sets.every(s => s.reps === sets[0].reps && s.weight_kg === sets[0].weight_kg);
+
+            return (
+              <View key={ex.id || idx} style={styles.exerciseRow}>
+                <Text style={[styles.exerciseIndex, { color: theme.colors.onSurfaceVariant }]}>{idx + 1}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.exerciseName, { color: theme.colors.onSurface }]}>{ex.name}</Text>
+                  
+                  <View style={{ marginTop: 4 }}>
+                    {isConsistent ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                        <Text style={{ width: 70, color: theme.colors.onSurfaceVariant, fontFamily: 'SpaceMono', fontSize: 13, fontWeight: '500' }}>
+                          {sets.length} Series
+                        </Text>
+                        <Text style={{ width: 16, color: theme.colors.onSurfaceVariant, fontFamily: 'SpaceMono', fontSize: 13, fontWeight: '500', textAlign: 'center' }}>
+                          •
+                        </Text>
+                        <Text style={{ width: 75, color: theme.colors.onSurfaceVariant, fontFamily: 'SpaceMono', fontSize: 13, fontWeight: '500', textAlign: 'center' }}>
+                          {sets[0].reps} Reps
+                        </Text>
+                        <Text style={{ width: 16, color: theme.colors.onSurfaceVariant, fontFamily: 'SpaceMono', fontSize: 13, fontWeight: '500', textAlign: 'center' }}>
+                          •
+                        </Text>
+                        <Text style={{ flex: 1, color: theme.colors.onSurfaceVariant, fontFamily: 'SpaceMono', fontSize: 13, fontWeight: '500', marginLeft: 8 }}>
+                          {sets[0].weight_kg} kg
+                        </Text>
                       </View>
+                    ) : (
+                      sets.map((s, sIdx) => (
+                        <View key={sIdx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                          <Text style={{ width: 70, color: theme.colors.onSurfaceVariant, fontFamily: 'SpaceMono', fontSize: 13, fontWeight: '500' }}>
+                            Serie {sIdx + 1}
+                          </Text>
+                          <Text style={{ width: 16, color: theme.colors.onSurfaceVariant, fontFamily: 'SpaceMono', fontSize: 13, fontWeight: '500', textAlign: 'center' }}>
+                            •
+                          </Text>
+                          <Text style={{ width: 75, color: theme.colors.onSurfaceVariant, fontFamily: 'SpaceMono', fontSize: 13, fontWeight: '500', textAlign: 'center' }}>
+                            {s.reps} Reps
+                          </Text>
+                          <Text style={{ width: 16, color: theme.colors.onSurfaceVariant, fontFamily: 'SpaceMono', fontSize: 13, fontWeight: '500', textAlign: 'center' }}>
+                            •
+                          </Text>
+                          <Text style={{ flex: 1, color: theme.colors.onSurfaceVariant, fontFamily: 'SpaceMono', fontSize: 13, fontWeight: '500', marginLeft: 8 }}>
+                            {s.weight_kg} kg
+                          </Text>
+                        </View>
+                      ))
                     )}
                   </View>
                 </View>
-              );
-            })}
-          </Surface>
-        )}
+              </View>
+            );
+          })}
+        </View>
+      )}
 
-        {expanded && exerciseCount === 0 && (
-          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 8, fontStyle: 'italic' }}>
-            Sin ejercicios registrados.
-          </Text>
-        )}
-      </Card.Content>
-    </Card>
+      {expanded && exerciseCount === 0 && (
+        <Text style={{ color: theme.colors.onSurfaceVariant, marginTop: 16, fontStyle: 'italic', textAlign: 'center' }}>
+          Sin ejercicios registrados.
+        </Text>
+      )}
+    </Pressable>
   );
 }
 
 export default function WorkoutIndexScreen() {
   const theme = useTheme();
-  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } =
-    useWorkoutHistory();
+  const [filter, setFilter] = useState('Esta semana');
+  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } = useWorkoutHistory();
 
-  const workouts = data?.pages.flatMap(p => p.data) ?? [];
+  const workouts = useMemo(() => {
+    let all = data?.pages.flatMap(p => p.data) ?? [];
+    const now = new Date();
+    
+    if (filter === 'Esta semana') {
+      const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay() + 1));
+      startOfWeek.setHours(0,0,0,0);
+      all = all.filter(w => new Date(w.date) >= startOfWeek);
+    } else if (filter === 'Mes') {
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      all = all.filter(w => new Date(w.date) >= startOfMonth);
+    }
+    return all;
+  }, [data, filter]);
 
-  if (!isLoading && !isError && workouts.length === 0) {
+  if (!isLoading && !isError && data?.pages.flatMap(p => p.data).length === 0) {
     return (
       <View style={[styles.centered, { backgroundColor: theme.colors.background }]}>
         <Text style={styles.emptyEmoji}>🏋️</Text>
@@ -171,9 +230,14 @@ export default function WorkoutIndexScreen() {
         contentContainerStyle={styles.list}
         ItemSeparatorComponent={() => <View style={{ height: 0 }} />}
         ListHeaderComponent={
-          <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12, textAlign: 'center' }}>
-            {data?.pages[0]?.pagination.total ?? 0} entrenamientos registrados
-          </Text>
+          <View style={{ marginBottom: 16, paddingTop: 16 }}>
+            <View style={{ paddingBottom: 16 }}>
+              <FilterTabs selected={filter} onSelect={setFilter} theme={theme} />
+            </View>
+            <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 13, textAlign: 'center' }}>
+              {workouts.length} entrenamientos registrados
+            </Text>
+          </View>
         }
         ListFooterComponent={
           hasNextPage ? (
@@ -193,18 +257,98 @@ export default function WorkoutIndexScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
-  list: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32 },
-  card: { borderRadius: 16, marginBottom: 14 },
-  cardContent: { paddingVertical: 14 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  chipsRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  chip: { borderRadius: 20 },
-  detailSurface: { borderRadius: 12, padding: 12, marginTop: 12 },
-  exerciseRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10, gap: 10 },
-  exerciseIndex: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(103,80,164,0.12)' },
-  setsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 2, marginTop: 2 },
+  list: { paddingTop: 16, paddingBottom: 32 },
   emptyEmoji: { fontSize: 64, marginBottom: 16 },
   emptyTitle: { fontWeight: '700', textAlign: 'center', marginBottom: 10 },
   emptySubtitle: { textAlign: 'center', lineHeight: 22 },
   loadMoreBtn: { borderRadius: 14, marginHorizontal: 32, marginTop: 8 },
+
+  filterContainer: {
+    flexDirection: 'row',
+    borderRadius: 12,
+    padding: 2,
+    marginHorizontal: 16,
+    alignItems: 'center'
+  },
+  filterTab: {
+    flex: 1,
+    paddingVertical: 6,
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  filterTabText: {
+    fontSize: 11,
+    fontWeight: '500'
+  },
+  filterDivider: {
+    width: 1,
+    height: 16,
+  },
+
+  card: {
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
+    marginHorizontal: 16,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  cardSubtitle: {
+    fontSize: 14,
+  },
+  cardChips: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  greenChip: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  greenChipText: {
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  detailsContainer: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(150,150,150,0.1)',
+  },
+  exerciseRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  exerciseIndex: {
+    fontSize: 16,
+    fontWeight: '700',
+    width: 24,
+    fontFamily: 'monospace',
+    marginTop: 2,
+  },
+  exerciseName: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  exerciseCompact: {
+    fontSize: 14,
+    fontFamily: 'monospace',
+  },
+  exerciseVariant: {
+    fontSize: 14,
+    fontFamily: 'monospace',
+    marginBottom: 2,
+  },
 });

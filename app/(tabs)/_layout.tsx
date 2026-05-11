@@ -1,10 +1,10 @@
 import { useAppStore } from '@/src/store/useAppStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Tabs, router } from 'expo-router';
-import React, { useState, useEffect } from 'react';
-import { Pressable, StyleSheet, View, Text } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from 'react-native-paper';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 const TARGET_POSITIONS = [
   { x: -125, y: -30 }, // SUEÑO
@@ -148,7 +148,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="workout"
           options={{
-            title: 'Entrenamiento',
+            title: 'Entrenos',
             tabBarIcon: ({ color, size }) => (
               <MaterialCommunityIcons name="dumbbell" color={color} size={size} />
             ),

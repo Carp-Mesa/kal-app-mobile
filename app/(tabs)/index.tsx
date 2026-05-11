@@ -7,6 +7,7 @@ import { getProfile } from '@/src/services/profileService';
 import { useIsFocused } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { router, usePathname } from 'expo-router';
+import { useAppStore } from '@/src/store/useAppStore';
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Dimensions,
@@ -268,16 +269,14 @@ const TrendsSection = memo(function TrendsSection() {
 // ─── Dashboard ──────────────────────────────────────────────────────────────
 
 export default function DashboardScreen() {
-  const pathname = usePathname();
-  const hideFab = pathname === '/workout/new';
   const theme = useTheme();
+  const modalVisible = useAppStore((state) => state.modalVisible);
+  const setModalVisible = useAppStore((state) => state.setModalVisible);
   const { data, isLoading, refetch } = useQuery({ queryKey: ['progressToday'], queryFn: fetchProgress });
   const { data: profile } = useQuery({ queryKey: ['profile'], queryFn: getProfile });
   const { data: sleepData, refetch: refetchSleep } = useTodaySleep();
   const [refreshing, setRefreshing] = useState(false);
 
-  const [fabOpen, setFabOpen] = useState(false);
-  const [modalVisible, setModalVisible] = useState<'none' | 'water' | 'nutrition' | 'sleep'>('none');
   const [snackbar, setSnackbar] = useState({ visible: false, message: '' });
 
   const [waterAmount, setWaterAmount] = useState('');
@@ -434,26 +433,10 @@ export default function DashboardScreen() {
           <TrendsSection />
         </View>
 
-        <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* ── FAB ──────────────────────────────────────────────────── */}
+      {/* ── Action Modals ──────────────────────────────────────────────────── */}
       <Portal>
-        <FAB.Group
-          open={fabOpen}
-          visible={!hideFab}
-          icon={fabOpen ? 'close' : 'plus'}
-          actions={[
-            { icon: 'bed', label: 'Sueño', onPress: () => setModalVisible('sleep') },
-            { icon: 'food-apple', label: 'Comida', onPress: () => setModalVisible('nutrition') },
-            { icon: 'cup-water', label: 'Agua', onPress: () => setModalVisible('water') },
-            { icon: 'dumbbell', label: 'Entrenamiento', onPress: () => { setFabOpen(false); router.push('/(tabs)/workout/new'); } },
-          ]}
-          onStateChange={({ open }) => setFabOpen(open)}
-          style={styles.fabGroup}
-          fabStyle={styles.fab}
-        />
-
         {/* Water Modal */}
         <ActionModal visible={modalVisible === 'water'} onDismiss={() => setModalVisible('none')} title="Registrar Agua">
           <View style={styles.actionRow}>
@@ -591,14 +574,6 @@ const styles = StyleSheet.create({
   chartHeader: {
     marginBottom: 12,
     gap: 2,
-  },
-  fabGroup: {
-    position: 'absolute',
-    right: 0,
-    bottom: 60, // raised further to avoid tab bar
-  },
-  fab: {
-    borderRadius: 16,
   },
   actionRow: {
     flexDirection: 'row',

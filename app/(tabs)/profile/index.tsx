@@ -453,7 +453,6 @@ export default function ProfileScreen() {
         >
           Cerrar Sesión
         </Button>
-        <View style={{ height: 40 }} />
       </ScrollView>
 
       <Snackbar

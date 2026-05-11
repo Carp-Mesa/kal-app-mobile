@@ -8,6 +8,7 @@ import { useIsFocused } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { router, usePathname } from 'expo-router';
 import { useAppStore } from '@/src/store/useAppStore';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Dimensions,
@@ -16,6 +17,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 import { LineChart } from 'react-native-chart-kit';
 import {
   ActivityIndicator,
@@ -147,124 +149,148 @@ const FastInput = memo(function FastInput({
 
 // ─── Metric Card ────────────────────────────────────────────────────────────
 
-interface MetricCardProps {
-  title: string;
-  subtitle: string;
-  icon: string;
-  color: string;
-  progress?: number;
-  onPress?: () => void;
-  style?: any;
-}
+// ─── Cards ────────────────────────────────────────────────────────────
 
-const MetricCard = memo(function MetricCard({ title, subtitle, icon, color, progress, onPress, style }: MetricCardProps) {
+const CircularProgressCard = memo(function CircularProgressCard({ title, subtitle, icon, progress, style }: any) {
+  const theme = useTheme();
+  const size = 110;
+  const strokeWidth = 10;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = radius * 2 * Math.PI;
+  const offset = circumference - Math.min(progress, 1) * circumference;
+  
+  return (
+    <View style={[{ 
+      backgroundColor: theme.dark ? '#1c1c1e' : theme.colors.surface,
+      borderColor: theme.colors.primary,
+      borderWidth: 1,
+      borderRadius: 16,
+      padding: 16,
+    }, style]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+        <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(204, 255, 0, 0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+          <MaterialCommunityIcons name={icon} size={20} color={theme.colors.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: theme.colors.onSurface, fontWeight: '700', fontSize: 16 }} numberOfLines={1}>{title}</Text>
+          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12 }} numberOfLines={1}>{subtitle}</Text>
+        </View>
+      </View>
+      
+      <View style={{ alignItems: 'center', justifyContent: 'center', height: size }}>
+        <Svg width={size} height={size}>
+          <Circle
+            stroke={theme.dark ? 'rgba(204,255,0,0.15)' : 'rgba(0,0,0,0.05)'}
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            strokeWidth={strokeWidth}
+            fill="none"
+          />
+          <Circle
+            stroke={theme.colors.primary}
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            strokeWidth={strokeWidth}
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            strokeLinecap="round"
+            fill="none"
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          />
+        </Svg>
+        <View style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: theme.colors.onSurface, fontSize: 22, fontWeight: 'bold' }}>
+            {Math.round(progress * 100)}%
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+});
+
+const WorkoutStatusCard = memo(function WorkoutStatusCard({ title, currentSession, duration, status, onPress }: any) {
   const theme = useTheme();
   return (
-    <Card style={[styles.metricCard, style]} mode="elevated" onPress={onPress}>
-      <Card.Content style={styles.metricContent}>
-        <View style={styles.metricRow}>
-          <Avatar.Icon icon={icon} size={40} style={{ backgroundColor: color }} />
-          <View style={styles.metricText}>
-            <Text
-              variant="titleMedium"
-              style={{ color: theme.colors.onSurface, fontWeight: '700' }}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-            >
-              {title}
-            </Text>
-            <Text
-              variant="bodySmall"
-              style={{ color: theme.colors.onSurfaceVariant }}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-            >
-              {subtitle}
-            </Text>
+    <Card 
+      onPress={onPress}
+      style={{
+        backgroundColor: theme.dark ? '#1c1c1e' : theme.colors.surface,
+        borderColor: theme.colors.primary,
+        borderWidth: 1,
+        borderRadius: 16,
+        marginBottom: 16,
+        elevation: 0,
+      }}
+    >
+      <Card.Content style={{ padding: 16 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+          <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(204, 255, 0, 0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+            <MaterialCommunityIcons name="dumbbell" size={20} color={theme.colors.primary} />
           </View>
+          <Text style={{ color: theme.colors.onSurface, fontWeight: '700', fontSize: 18 }}>{title}</Text>
         </View>
-        {progress !== undefined && progress > 0 && (
-          <ProgressBar progress={Math.min(progress, 1)} color={color} style={[styles.progressBar, { borderRadius: 4 }]} />
-        )}
+
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+          <Text style={{ color: theme.colors.onSurface, fontSize: 16 }} numberOfLines={1}>Sesión actual: {currentSession}</Text>
+          <Text style={{ color: theme.colors.primary, fontSize: 16 }}>{duration}</Text>
+        </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 14 }}>Tiempo</Text>
+          <Text style={{ color: theme.colors.primary, fontSize: 14 }}>{status}</Text>
+        </View>
       </Card.Content>
     </Card>
   );
 });
 
-// ─── Trends Chart ───────────────────────────────────────────────────────────
-
-const TrendsSection = memo(function TrendsSection() {
+const SleepChartCard = memo(function SleepChartCard({ title, mainValue, subtitle }: any) {
   const theme = useTheme();
-  const { data, isLoading } = useWeeklyStats();
-
-  const chartData = React.useMemo(() => {
-    if (!data?.daily_stats || data.daily_stats.length === 0) return null;
-    const stats = [...data.daily_stats].sort((a, b) => a.date.localeCompare(b.date));
-    const labels = stats.map((s) => {
-      const d = new Date(s.date + 'T12:00:00');
-      return ['D', 'L', 'M', 'X', 'J', 'V', 'S'][d.getDay()];
-    });
-    const values = stats.map((s) => s.total_calories);
-    return { labels, values, goal: data.calorie_goal };
-  }, [data]);
-
-  if (isLoading) {
-    return (
-      <View style={[styles.chartCard, { backgroundColor: theme.colors.surface, alignItems: 'center', justifyContent: 'center', height: 260 }]}>
-        <ActivityIndicator size="small" />
-      </View>
-    );
-  }
-
-  if (!chartData) {
-    return (
-      <View style={[styles.chartCard, { backgroundColor: theme.colors.surface, alignItems: 'center', justifyContent: 'center', height: 180 }]}>
-        <Text variant="titleSmall" style={{ color: theme.colors.onSurfaceVariant }}>📊 Sin datos aún</Text>
-        <Text variant="bodySmall" style={{ color: theme.colors.outline, marginTop: 4 }}>Registra comidas para ver tendencias</Text>
-      </View>
-    );
-  }
-
-  const chartConfig = {
-    backgroundGradientFrom: theme.colors.surface,
-    backgroundGradientTo: theme.colors.surface,
-    fillShadowGradientFrom: theme.colors.primary,
-    fillShadowGradientFromOpacity: 0.3,
-    fillShadowGradientTo: theme.colors.primary,
-    fillShadowGradientToOpacity: 0.05,
-    color: (opacity = 1) => theme.colors.primary,
-    labelColor: () => theme.colors.onSurfaceVariant,
-    strokeWidth: 4,
-    decimalPlaces: 0,
-    propsForDots: { r: '4', strokeWidth: '2', stroke: theme.colors.surface, fill: theme.colors.primary },
-    propsForBackgroundLines: { strokeDasharray: '4', strokeWidth: 1, stroke: theme.colors.outlineVariant },
-  };
+  const days = ['L', 'M', 'Mi', 'J', 'V', 'S', 'D'];
+  const chartData = [0.5, 0.8, 0.5, 1.0, 0.7, 0.9, 0.6]; // Visually pleasing mock data representing the week
 
   return (
-    <View style={[styles.chartCard, { backgroundColor: theme.colors.surface }]}>
-      <View style={styles.chartHeader}>
-        <Text variant="titleMedium" style={{ color: theme.colors.onSurface, fontWeight: '700' }}>
-          📈 Tendencias — Calorías
-        </Text>
-        {chartData.goal ? (
-          <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-            Meta: {chartData.goal.toLocaleString()} kcal
-          </Text>
-        ) : null}
+    <View style={{
+        backgroundColor: theme.dark ? '#1c1c1e' : theme.colors.surface,
+        borderColor: theme.colors.primary,
+        borderWidth: 1,
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 16,
+      }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+        <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(204, 255, 0, 0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+          <MaterialCommunityIcons name="bed" size={20} color={theme.colors.primary} />
+        </View>
+        <Text style={{ color: theme.colors.onSurface, fontWeight: '700', fontSize: 18 }}>{title}</Text>
       </View>
-      <LineChart
-        data={{ labels: chartData.labels, datasets: [{ data: chartData.values }] }}
-        width={CHART_WIDTH}
-        height={200}
-        chartConfig={chartConfig}
-        bezier
-        style={{ borderRadius: 12 }}
-        fromZero
-        withInnerLines
-      />
+
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 20 }}>
+        <Text style={{ color: theme.colors.primary, fontSize: 24, fontWeight: 'bold' }}>{mainValue}</Text>
+        <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 14 }}>{subtitle}</Text>
+      </View>
+
+      {/* Bar Chart */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', height: 80, alignItems: 'flex-end', paddingHorizontal: 4 }}>
+        {days.map((day, i) => (
+          <View key={i} style={{ alignItems: 'center', width: 24 }}>
+            <View style={{ 
+              width: 18, 
+              height: 50 * chartData[i] + 10, 
+              backgroundColor: theme.colors.primary, 
+              borderRadius: 4,
+              marginBottom: 8
+            }} />
+            <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12, fontWeight: '600' }}>{day}</Text>
+          </View>
+        ))}
+      </View>
     </View>
   );
 });
+
+
 
 // ─── Dashboard ──────────────────────────────────────────────────────────────
 
@@ -378,8 +404,8 @@ export default function DashboardScreen() {
           >
             Hola, {firstName}
           </Text>
-          <Text variant="bodyLarge" style={{ color: theme.colors.onSurfaceVariant }}>
-            Este es tu resumen de hoy
+          <Text variant="titleMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+            Hoy, {new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long' }).replace(' de ', ' de ')}
           </Text>
         </View>
 
@@ -390,48 +416,39 @@ export default function DashboardScreen() {
           <>
             {/* Row 1: Agua + Nutrición */}
             <View style={styles.gridRow}>
-              <MetricCard
+              <CircularProgressCard
                 title="Agua"
                 subtitle={data?.water?.label || '0/2000 ml'}
-                icon="cup-water"
-                color="#2196F3"
+                icon="water"
                 progress={data?.water?.progress || 0}
                 style={styles.halfCard}
               />
-              <MetricCard
+              <CircularProgressCard
                 title="Nutrición"
                 subtitle={data?.nutrition?.label || '0/2000 kcal'}
                 icon="food-apple"
-                color="#4CAF50"
                 progress={data?.nutrition?.progress || 0}
                 style={styles.halfCard}
               />
             </View>
 
             {/* Row 2: Entrenamiento */}
-            <MetricCard
+            <WorkoutStatusCard
               title="Entrenamiento"
-              subtitle={data?.workout?.label || 'Pendiente'}
-              icon="dumbbell"
-              color="#FF9800"
+              currentSession={data?.workout?.label || 'Día 1'}
+              duration="0 mins"
+              status={data?.workout?.label === 'Completado' ? 'Completado' : 'Pendiente'}
               onPress={() => router.push('/(tabs)/workout')}
             />
 
             {/* Row 3: Sueño */}
-            <MetricCard
+            <SleepChartCard
               title="Sueño"
-              subtitle={sleepLabel}
-              icon="bed"
-              color="#9C27B0"
-              progress={sleepProgress}
+              mainValue={`${sleptHours}h ${sleptMins}m`}
+              subtitle="Horas dormidas"
             />
           </>
         )}
-
-        {/* ── Trends ─────────────────────────────────────────────── */}
-        <View style={styles.trendsSection}>
-          <TrendsSection />
-        </View>
 
       </ScrollView>
 
@@ -534,11 +551,12 @@ const styles = StyleSheet.create({
   gridRow: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 12,
+    marginBottom: 0,
+    alignItems: 'stretch',
   },
   halfCard: {
     flex: 1,
-    marginBottom: 0,
+    marginBottom: 16,
   },
   metricCard: {
     borderRadius: 16,

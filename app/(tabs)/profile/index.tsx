@@ -18,11 +18,13 @@ import {
   HelperText,
   List,
   Snackbar,
+  Switch,
   Text,
   TextInput,
   useTheme,
 } from 'react-native-paper';
 import { useAuthStore } from '@/src/store/useAuthStore';
+import { useAppStore } from '@/src/store/useAppStore';
 
 // ─── Memoized Input (local state — zero lag) ─────────────────────────────────
 
@@ -131,6 +133,7 @@ const FastInput = memo(function FastInput({
 
 export default function ProfileScreen() {
   const theme = useTheme();
+  const { themeMode, toggleTheme } = useAppStore();
   const queryClient = useQueryClient();
   const clearTokens = useAuthStore(state => state.clearTokens);
   const isInitialized = useRef(false);
@@ -402,6 +405,13 @@ export default function ProfileScreen() {
               ⚙️ Ajustes
             </Text>
             <Divider style={styles.divider} />
+          <List.Item
+            title="Modo Oscuro"
+            description="Cambiar apariencia de la aplicación"
+            left={props => <List.Icon {...props} icon="theme-light-dark" />}
+            right={props => <Switch value={themeMode === 'dark'} onValueChange={toggleTheme} />}
+            style={styles.listItem}
+          />
           <List.Item
             title="Historial Nutricional"
             description="Revisa tu progreso semanal"

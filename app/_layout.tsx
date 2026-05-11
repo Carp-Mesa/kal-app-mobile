@@ -7,7 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 
-import { theme } from '@/src/theme';
+import { DarkTheme as AppDarkTheme, LightTheme as AppLightTheme } from '@/src/theme/themes';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useColorScheme } from 'react-native';
 import { PaperProvider } from 'react-native-paper';
@@ -59,14 +59,16 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+  const themeMode = useAppStore((state) => state.themeMode);
+  const currentTheme = themeMode === 'dark' ? AppDarkTheme : AppLightTheme;
+  const navTheme = themeMode === 'dark' ? DarkTheme : DefaultTheme;
 
   return (
     <QueryClientProvider client={queryClient}>
-      <PaperProvider theme={theme}>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <SafeAreaView style={{ flex: 1, backgroundColor: '#121212' }} edges={['top']}>
-            <StatusBar style="light" backgroundColor="#121212" />
+      <PaperProvider theme={currentTheme}>
+        <ThemeProvider value={navTheme}>
+          <SafeAreaView style={{ flex: 1, backgroundColor: currentTheme.colors.background }} edges={['top']}>
+            <StatusBar style={themeMode === 'dark' ? 'light' : 'dark'} backgroundColor={currentTheme.colors.background} />
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="index" />
               <Stack.Screen name="(onboarding)" />

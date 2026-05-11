@@ -1,18 +1,116 @@
 import { useAppStore } from '@/src/store/useAppStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Tabs, router } from 'expo-router';
-import React, { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { List, Modal, Portal, useTheme } from 'react-native-paper';
+import React, { useState, useEffect } from 'react';
+import { Pressable, StyleSheet, View, Text } from 'react-native';
+import { useTheme } from 'react-native-paper';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 
-const CustomMainButton = ({ children, onPress }: any) => {
-  const theme = useTheme();
+const TARGET_POSITIONS = [
+  { x: -125, y: -30 }, // SUEÑO
+  { x: -55, y: -115 }, // COMIDA
+  { x: 55,  y: -115 }, // AGUA
+  { x: 125,  y: -30 }, // GYM
+];
+
+const ActionCard = ({ icon, label, onPress, index, theme, isOpen }: any) => {
+  const target = TARGET_POSITIONS[index];
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    if (isOpen) {
+      progress.value = withTiming(1, { duration: 100, easing: Easing.out(Easing.quad) });
+    } else {
+      progress.value = 0;
+    }
+  }, [isOpen]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: progress.value,
+    transform: [
+      { translateX: target.x },
+      { translateY: target.y },
+      { scale: 0.8 + (progress.value * 0.2) },
+    ],
+  }));
+
   return (
-    <Pressable onPress={onPress} style={styles.mainButtonContainer}>
-      <View style={[styles.mainButton, { backgroundColor: theme.colors.primary }]}>
-        <MaterialCommunityIcons name="plus" size={32} color={theme.colors.background} />
+    <Animated.View style={[styles.radialItem, animatedStyle]} pointerEvents={isOpen ? 'auto' : 'none'}>
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.actionCircle,
+          {
+            backgroundColor: theme.dark ? '#000000' : '#FFFFFF',
+            borderColor: theme.colors.primary,
+            shadowColor: theme.colors.primary,
+            transform: [{ scale: pressed ? 0.9 : 1 }]
+          }
+        ]}
+      >
+        <MaterialCommunityIcons name={icon} size={26} color={theme.colors.primary} />
+      </Pressable>
+      <Text style={[styles.actionLabel, { color: theme.colors.onSurface }]}>{label}</Text>
+    </Animated.View>
+  );
+};
+
+const ActionMenuOverlay = ({ visible, onClose, theme, setModalVisible }: any) => {
+  const bgOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    if (visible) {
+      bgOpacity.value = withTiming(1, { duration: 100, easing: Easing.out(Easing.quad) });
+    } else {
+      bgOpacity.value = 0;
+    }
+  }, [visible]);
+
+  const bgStyle = useAnimatedStyle(() => ({
+    opacity: bgOpacity.value,
+  }));
+
+  return (
+    <View style={[StyleSheet.absoluteFill, { zIndex: 100, elevation: 10 }]} pointerEvents={visible ? 'box-none' : 'none'}>
+      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.85)' }, bgStyle]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      </Animated.View>
+
+      <View style={styles.radialContainer} pointerEvents={visible ? 'box-none' : 'none'}>
+        <ActionCard isOpen={visible} index={0} icon="bed" label="SUEÑO" theme={theme} onPress={() => { onClose(); setModalVisible('sleep'); }} />
+        <ActionCard isOpen={visible} index={1} icon="food-apple" label="COMIDA" theme={theme} onPress={() => { onClose(); setModalVisible('nutrition'); }} />
+        <ActionCard isOpen={visible} index={2} icon="cup-water" label="AGUA" theme={theme} onPress={() => { onClose(); setModalVisible('water'); }} />
+        <ActionCard isOpen={visible} index={3} icon="dumbbell" label="GYM" theme={theme} onPress={() => { onClose(); router.push('/(tabs)/workout/new'); }} />
       </View>
-    </Pressable>
+    </View>
+  );
+};
+
+const AbsoluteMainButton = ({ onPress, isMenuVisible }: any) => {
+  const theme = useTheme();
+  const rotation = useSharedValue(0);
+
+  useEffect(() => {
+    rotation.value = withTiming(isMenuVisible ? 1 : 0, { 
+      duration: 150, 
+      easing: Easing.out(Easing.quad) 
+    });
+  }, [isMenuVisible]);
+
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ rotate: `${rotation.value * 135}deg` }]
+    };
+  });
+
+  return (
+    <View style={styles.absoluteMainButtonWrapper} pointerEvents="box-none">
+      <Pressable onPress={onPress}>
+        <Animated.View style={[styles.mainButton, { backgroundColor: theme.colors.primary }, animatedStyle]}>
+          <MaterialCommunityIcons name="plus" size={32} color={theme.colors.background} />
+        </Animated.View>
+      </Pressable>
+    </View>
   );
 };
 
@@ -61,12 +159,11 @@ export default function TabLayout() {
           options={{
             title: '',
             tabBarIcon: () => null,
-            tabBarButton: (props) => <CustomMainButton {...props} />,
+            tabBarButton: () => <View style={{ width: 60, marginHorizontal: 10 }} />, // Simple spacer in the TabBar
           }}
           listeners={{
             tabPress: (e) => {
-              e.preventDefault();
-              setMenuVisible(true);
+              e.preventDefault(); // Prevent navigating to dummy screen
             },
           }}
         />
@@ -90,47 +187,30 @@ export default function TabLayout() {
         />
       </Tabs>
 
-      <Portal>
-        <Modal
-          visible={menuVisible}
-          onDismiss={() => setMenuVisible(false)}
-          contentContainerStyle={[styles.modalContainer, { backgroundColor: theme.colors.surface }]}
-        >
-          <List.Item
-            title="Sueño"
-            left={props => <List.Icon {...props} icon="bed" color="#9C27B0" />}
-            onPress={() => { setMenuVisible(false); setModalVisible('sleep'); }}
-          />
-          <List.Item
-            title="Comida"
-            left={props => <List.Icon {...props} icon="food-apple" color="#4CAF50" />}
-            onPress={() => { setMenuVisible(false); setModalVisible('nutrition'); }}
-          />
-          <List.Item
-            title="Agua"
-            left={props => <List.Icon {...props} icon="cup-water" color="#2196F3" />}
-            onPress={() => { setMenuVisible(false); setModalVisible('water'); }}
-          />
-          <List.Item
-            title="Entrenamiento"
-            left={props => <List.Icon {...props} icon="dumbbell" color="#FF9800" />}
-            onPress={() => { setMenuVisible(false); router.push('/(tabs)/workout/new'); }}
-          />
-        </Modal>
-      </Portal>
+      <ActionMenuOverlay
+        visible={menuVisible}
+        onClose={() => setMenuVisible(false)}
+        theme={theme}
+        setModalVisible={setModalVisible}
+      />
+
+      <AbsoluteMainButton 
+        isMenuVisible={menuVisible}
+        onPress={() => setMenuVisible(!menuVisible)}
+      />
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  mainButtonContainer: {
-    top: -20,
-    justifyContent: 'center',
+  absoluteMainButtonWrapper: {
+    position: 'absolute',
+    bottom: 24, // Matches the 64px tab bar with the top:-20 offset conceptually
+    alignSelf: 'center',
+    zIndex: 200, // Always above the overlay (zIndex 100)
+    elevation: 20,
     alignItems: 'center',
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    marginHorizontal: 10,
+    justifyContent: 'center',
   },
   mainButton: {
     width: 60,
@@ -144,9 +224,39 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 2 },
   },
-  modalContainer: {
-    margin: 20,
-    padding: 10,
-    borderRadius: 16,
+  radialContainer: {
+    position: 'absolute',
+    bottom: 45, // Anchored around where the central button is
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radialItem: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 1.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 6,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 6,
+  },
+  actionLabel: {
+    marginTop: 6,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+    position: 'absolute',
+    top: 58,
+    textAlign: 'center',
+    width: 80,
   },
 });

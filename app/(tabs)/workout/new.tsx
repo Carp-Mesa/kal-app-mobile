@@ -1,33 +1,52 @@
 import { useExerciseSuggestions } from '@/src/hooks/useExerciseSuggestions';
 import { createWorkout, ExercisePayload, SetEntry } from '@/src/services/workoutService';
+import { useAppStore } from '@/src/store/useAppStore';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   View,
 } from 'react-native';
-import {
-  ActivityIndicator,
-  Button,
-  Card,
-  Chip,
-  Divider,
-  FAB,
-  HelperText,
-  IconButton,
-  Snackbar,
-  Surface,
-  Text,
-  TextInput,
-  useTheme,
-} from 'react-native-paper';
+import { Snackbar, Text, TextInput } from 'react-native-paper';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// Design Tokens
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const CYBER = '#CCFF00';
+const BLACK = '#000000';
+const CARD_BG = '#1A1A1A';
+const BORDER = 'rgba(255,255,255,0.15)';
+const SILVER = '#888888';
+const WHITE = '#FFFFFF';
+const MUTED = '#444444';
+
+const CARD_STYLE = {
+  backgroundColor: CARD_BG,
+  borderColor: BORDER,
+  borderWidth: 1.5,
+  borderRadius: 20,
+  padding: 20,
+  marginBottom: 20,
+};
+
+const OUTLINE_STYLE = {
+  borderRadius: 12,
+  borderColor: BORDER,
+  borderWidth: 1.5,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Types
+// ═══════════════════════════════════════════════════════════════════════════════
 
 interface SetForm {
   id: string;
@@ -49,15 +68,13 @@ interface WorkoutForm {
   exercises: ExerciseForm[];
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════════════════════════════════════════
 
 const uid = (): string => Date.now().toString() + Math.random().toString(36).slice(2);
 
-const createEmptySet = (): SetForm => ({
-  id: uid(),
-  reps: '',
-  weight_kg: '',
-});
+const createEmptySet = (): SetForm => ({ id: uid(), reps: '', weight_kg: '' });
 
 const createInheritedSet = (previous?: SetForm): SetForm => ({
   id: uid(),
@@ -80,6 +97,12 @@ const getLocalDateString = (): string => {
   return `${y}-${m}-${d}`;
 };
 
+const formatDisplayDate = (): string => {
+  const d = new Date();
+  return d.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'long' })
+    .replace(/^\w/, c => c.toUpperCase());
+};
+
 const initialForm = (): WorkoutForm => ({
   name: '',
   notes: '',
@@ -87,20 +110,17 @@ const initialForm = (): WorkoutForm => ({
   exercises: [createEmptyExercise()],
 });
 
-// ─── Input Filters ───────────────────────────────────────────────────────────
-
 const filterInteger = (text: string): string => text.replace(/[^0-9]/g, '');
-
 const filterDecimal = (text: string): string => {
   let cleaned = text.replace(/[^0-9.]/g, '');
   const parts = cleaned.split('.');
-  if (parts.length > 2) {
-    cleaned = parts[0] + '.' + parts.slice(1).join('');
-  }
+  if (parts.length > 2) cleaned = parts[0] + '.' + parts.slice(1).join('');
   return cleaned;
 };
 
-// ─── SetRow (memoized — local state eliminates re-render lag) ────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// SetRow — Data-table row
+// ═══════════════════════════════════════════════════════════════════════════════
 
 interface SetRowProps {
   setId: string;
@@ -109,7 +129,9 @@ interface SetRowProps {
   weightKg: string;
   onUpdateSet: (exerciseId: string, setId: string, field: 'reps' | 'weight_kg', value: string) => void;
   onRemoveSet: (exerciseId: string, setId: string) => void;
+  onAddSet?: (exerciseId: string) => void;
   canRemove: boolean;
+  isLast: boolean;
   exerciseId: string;
 }
 
@@ -120,34 +142,29 @@ const SetRow = memo(function SetRow({
   weightKg,
   onUpdateSet,
   onRemoveSet,
+  onAddSet,
   canRemove,
+  isLast,
   exerciseId,
 }: SetRowProps) {
-  const theme = useTheme();
   const [localReps, setLocalReps] = useState(reps);
   const [localWeight, setLocalWeight] = useState(weightKg);
   const repsFocused = useRef(false);
   const weightFocused = useRef(false);
 
-  useEffect(() => {
-    if (!repsFocused.current) setLocalReps(reps);
-  }, [reps]);
-
-  useEffect(() => {
-    if (!weightFocused.current) setLocalWeight(weightKg);
-  }, [weightKg]);
+  useEffect(() => { if (!repsFocused.current) setLocalReps(reps); }, [reps]);
+  useEffect(() => { if (!weightFocused.current) setLocalWeight(weightKg); }, [weightKg]);
 
   return (
-    <View style={styles.setRow}>
-      <View style={[styles.setBadge, { backgroundColor: theme.colors.primaryContainer }]}>
-        <Text variant="labelSmall" style={{ color: theme.colors.onPrimaryContainer, fontWeight: '700' }}>
-          {setIndex + 1}
-        </Text>
-      </View>
+    <View style={s.setTableRow}>
+      {/* Serie number — non-editable */}
+      <Text style={s.serieLabel}>{setIndex + 1}</Text>
+
+      {/* REPS input */}
       <TextInput
         mode="outlined"
-        label="Reps"
-        placeholder="10"
+        dense
+        placeholder="0"
         value={localReps}
         onChangeText={(t) => {
           const filtered = filterInteger(t);
@@ -156,19 +173,20 @@ const SetRow = memo(function SetRow({
           onUpdateSet(exerciseId, setId, 'reps', filtered);
         }}
         onFocus={() => { repsFocused.current = true; }}
-        onBlur={() => {
-          repsFocused.current = false;
-          setLocalReps(reps);
-        }}
+        onBlur={() => { repsFocused.current = false; setLocalReps(reps); }}
         keyboardType="numeric"
-        style={[styles.setField, { marginRight: 6 }]}
-        dense
         returnKeyType="next"
+        style={s.setField}
+        theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
+        outlineStyle={OUTLINE_STYLE}
+        textColor={WHITE}
       />
+
+      {/* KG input */}
       <TextInput
         mode="outlined"
-        label="Kg"
-        placeholder="80"
+        dense
+        placeholder="0"
         value={localWeight}
         onChangeText={(t) => {
           const filtered = filterDecimal(t);
@@ -177,29 +195,66 @@ const SetRow = memo(function SetRow({
           onUpdateSet(exerciseId, setId, 'weight_kg', filtered);
         }}
         onFocus={() => { weightFocused.current = true; }}
-        onBlur={() => {
-          weightFocused.current = false;
-          setLocalWeight(weightKg);
-        }}
+        onBlur={() => { weightFocused.current = false; setLocalWeight(weightKg); }}
         keyboardType="decimal-pad"
-        style={styles.setField}
-        dense
         returnKeyType="done"
+        style={s.setField}
+        theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
+        outlineStyle={OUTLINE_STYLE}
+        textColor={WHITE}
       />
-      {canRemove ? (
-        <IconButton
-          icon="close-circle-outline"
-          iconColor={theme.colors.error}
-          size={18}
-          onPress={() => onRemoveSet(exerciseId, setId)}
-          style={styles.removeSetBtn}
-        />
-      ) : <View style={{ width: 26 }} />}
+
+      {/* Last row: + button. Others: remove button */}
+      {isLast ? (
+        <Pressable onPress={() => onAddSet?.(exerciseId)} hitSlop={8} style={s.addSetIcon}>
+          <MaterialCommunityIcons name="plus-circle-outline" size={20} color={CYBER} />
+        </Pressable>
+      ) : canRemove ? (
+        <Pressable onPress={() => onRemoveSet(exerciseId, setId)} hitSlop={8} style={s.removeIcon}>
+          <MaterialCommunityIcons name="close-circle-outline" size={16} color={MUTED} />
+        </Pressable>
+      ) : (
+        <View style={{ width: 16 }} />
+      )}
     </View>
   );
 });
 
-// ─── ExerciseCard (memoized) ─────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// RPE Selector
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const RPE_SELECTOR = memo(function RpeSelector({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <View>
+      <Text style={s.fieldLabel}>RPE (Esfuerzo percibido durante el ejercicio)</Text>
+      <View style={s.rpeRow}>
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => {
+          const selected = value === String(n);
+          return (
+            <Pressable
+              key={n}
+              onPress={() => onChange(selected ? '' : String(n))}
+              style={[s.rpeDot, selected && s.rpeDotActive]}
+            >
+              <Text style={[s.rpeText, selected && s.rpeTextActive]}>{n}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ExerciseCard
+// ═══════════════════════════════════════════════════════════════════════════════
 
 interface ExerciseCardProps {
   exercise: ExerciseForm;
@@ -226,7 +281,6 @@ const ExerciseCard = memo(function ExerciseCard({
   canRemove,
   suggestions,
 }: ExerciseCardProps) {
-  const theme = useTheme();
   const [nameFocused, setNameFocused] = useState(false);
   const [localName, setLocalName] = useState(exercise.name);
   const nameFocusedRef = useRef(false);
@@ -247,187 +301,170 @@ const ExerciseCard = memo(function ExerciseCard({
   const totalVolume = exercise.sets.reduce((sum, s) => {
     const r = Number(s.reps) || 0;
     const w = parseFloat(s.weight_kg) || 0;
-    return sum + (r * w);
+    return sum + r * w;
   }, 0);
 
   return (
-    <Card
-      style={[styles.card, styles.exerciseCard, { backgroundColor: theme.colors.surface }]}
-      mode="elevated"
-    >
-      <Card.Content style={styles.cardContent}>
-        <View style={styles.exerciseHeader}>
-          <View style={styles.exerciseBadge}>
-            <Text variant="labelLarge" style={{ color: theme.colors.onPrimary, fontWeight: '700' }}>
-              #{index + 1}
-            </Text>
-          </View>
-          <Text variant="titleSmall" style={{ flex: 1, color: theme.colors.onSurface, marginLeft: 4 }}>
-            Ejercicio {index + 1}
-          </Text>
-          {canRemove && (
-            <IconButton
-              icon="delete-outline"
-              iconColor={theme.colors.error}
-              size={22}
-              onPress={() => onRemoveExercise(exerciseId)}
-              style={styles.deleteBtn}
-            />
-          )}
+    <View style={s.exerciseCard}>
+      {/* Header — Delete on right */}
+      <View style={s.exerciseCardHeader}>
+        <View style={{ flex: 1 }}>
+          <TextInput
+            mode="outlined"
+            label="Nombre del ejercicio"
+            placeholder="Press banca..."
+            value={localName}
+            onChangeText={(t) => {
+              setLocalName(t);
+              nameFocusedRef.current = true;
+              onUpdateExercise(exerciseId, 'name', t);
+            }}
+            onFocus={() => { setNameFocused(true); nameFocusedRef.current = true; }}
+            onBlur={() => {
+              nameFocusedRef.current = false;
+              if (!justSelectedRef.current) setNameFocused(false);
+              justSelectedRef.current = false;
+              setLocalName(exercise.name);
+            }}
+            autoCapitalize="words"
+            returnKeyType="done"
+            style={{ backgroundColor: 'transparent', marginBottom: showSuggestions ? 4 : 12, marginTop: -5 }}
+            theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
+            outlineStyle={OUTLINE_STYLE}
+            textColor={WHITE}
+          />
         </View>
 
-        <Divider style={styles.divider} />
-
-        <TextInput
-          mode="outlined"
-          label="Ejercicio *"
-          placeholder="Press banca..."
-          value={localName}
-          onChangeText={(t) => {
-            setLocalName(t);
-            nameFocusedRef.current = true;
-            onUpdateExercise(exerciseId, 'name', t);
-          }}
-          onFocus={() => { setNameFocused(true); nameFocusedRef.current = true; }}
-          onBlur={() => {
-            nameFocusedRef.current = false;
-            if (!justSelectedRef.current) setNameFocused(false);
-            justSelectedRef.current = false;
-            setLocalName(exercise.name);
-          }}
-          style={styles.input}
-          autoCapitalize="words"
-          returnKeyType="next"
-          left={<TextInput.Icon icon="magnify" />}
-          dense
-        />
-        <HelperText type="info" visible padding="none" style={styles.helperText}>
-          Busca o escribe el nombre
-        </HelperText>
-        {showSuggestions && (
-          <Surface style={[styles.suggestionsContainer, { backgroundColor: theme.colors.surface }]} elevation={4}>
-            <View style={styles.suggestionsInner}>
-              {filteredSuggestions.map((suggestion) => (
-                <Chip
-                  key={suggestion}
-                  mode="flat"
-                  icon="dumbbell"
-                  onPress={() => {
-                    justSelectedRef.current = true;
-                    onUpdateExercise(exerciseId, 'name', suggestion);
-                    setLocalName(suggestion);
-                    setNameFocused(false);
-                  }}
-                  style={[styles.suggestionChip, { backgroundColor: theme.colors.secondaryContainer }]}
-                  textStyle={{ color: theme.colors.onSecondaryContainer, fontSize: 13 }}
-                >
-                  {suggestion}
-                </Chip>
-              ))}
-            </View>
-          </Surface>
+        {canRemove && (
+          <Pressable onPress={() => onRemoveExercise(exerciseId)} hitSlop={10} style={{ paddingLeft: 12 }}>
+            <MaterialCommunityIcons name="trash-can-outline" size={18} color={MUTED} />
+          </Pressable>
         )}
+      </View>
 
-        <View style={styles.setsSectionHeader}>
-          <Text variant="labelLarge" style={{ color: theme.colors.onSurface, fontWeight: '600' }}>
-            Series ({exercise.sets.length})
-          </Text>
-          {totalVolume > 0 && (
-            <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
-              Vol. {totalVolume.toLocaleString('es-CO')} kg
-            </Text>
-          )}
+      {/* Suggestions */}
+      {showSuggestions && (
+        <View style={s.suggestionsWrap}>
+          {filteredSuggestions.map((sug) => (
+            <Pressable
+              key={sug}
+              onPress={() => {
+                justSelectedRef.current = true;
+                onUpdateExercise(exerciseId, 'name', sug);
+                setLocalName(sug);
+                setNameFocused(false);
+              }}
+              style={s.suggestionPill}
+            >
+              <Text style={s.suggestionText}>{sug}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
+      {/* Sets table */}
+      <View style={s.setTable}>
+        <View style={s.setTableHeader}>
+          <Text style={[s.setTableHeaderText, { flex: 0.6 }]}>SERIE</Text>
+          <Text style={[s.setTableHeaderText, { flex: 1, textAlign: 'left' }]}>REPS</Text>
+          <Text style={[s.setTableHeaderText, { flex: 1, textAlign: 'left' }]}>KG</Text>
+          <View style={{ width: 16 }} />
         </View>
 
-        {exercise.sets.map((s, sIdx) => (
+        {exercise.sets.map((setItem, sIdx) => (
           <SetRow
-            key={s.id}
-            setId={s.id}
+            key={setItem.id}
+            setId={setItem.id}
             setIndex={sIdx}
-            reps={s.reps}
-            weightKg={s.weight_kg}
+            reps={setItem.reps}
+            weightKg={setItem.weight_kg}
             onUpdateSet={onUpdateSet}
             onRemoveSet={onRemoveSet}
+            onAddSet={onAddSet}
             canRemove={exercise.sets.length > 1}
+            isLast={sIdx === exercise.sets.length - 1}
             exerciseId={exerciseId}
           />
         ))}
+      </View>
 
-        <Button
-          mode="contained-tonal"
-          icon="plus"
-          onPress={() => onAddSet(exerciseId)}
-          style={styles.addSetBtn}
-          contentStyle={{ height: 40 }}
-          labelStyle={{ fontSize: 13 }}
-          compact
-          textColor={theme.colors.primary}
-        >
-          Añadir Serie
-        </Button>
+      {/* RPE Selector */}
+      <RPE_SELECTOR
+        value={exercise.rpe}
+        onChange={(v) => onUpdateExercise(exerciseId, 'rpe', v)}
+      />
 
-        <TextInput
-          mode="outlined"
-          label="RPE"
-          placeholder="1-10"
-          value={exercise.rpe}
-          onChangeText={(t) => onUpdateExercise(exerciseId, 'rpe', filterInteger(t))}
-          keyboardType="numeric"
-          style={[styles.input, { marginTop: 10 }]}
-          left={<TextInput.Icon icon="gauge" />}
-          dense
-          returnKeyType="done"
-        />
-        <HelperText type="info" visible padding="none" style={styles.helperText}>
-          Esfuerzo percibido (1 fácil - 10 máximo)
-        </HelperText>
-      </Card.Content>
-    </Card>
+      {/* Volume badge */}
+      {totalVolume > 0 && (
+        <View style={s.volumeBadge}>
+          <Text style={s.volumeText}>VOL {totalVolume.toLocaleString('es-CO')} kg</Text>
+        </View>
+      )}
+    </View>
   );
 });
 
-// ─── Screen ──────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// Screen
+// ═══════════════════════════════════════════════════════════════════════════════
 
 export default function NewWorkoutScreen() {
-  const theme = useTheme();
   const queryClient = useQueryClient();
   const scrollRef = useRef<ScrollView>(null);
   const { data: rawSuggestions = [] } = useExerciseSuggestions();
 
+  // ── Workout store integration ─────────────────────────────────────────────
+  const triggerSaveWorkout = useAppStore(state => state.triggerSaveWorkout);
+  const triggerRef = useRef(triggerSaveWorkout);
+  const handleSaveRef = useRef<() => Promise<void>>(async () => {});
+
   const suggestions = useMemo(() => {
-    const normalized = (rawSuggestions as any[]).map((s) =>
+    return (rawSuggestions as any[]).map((s) =>
       typeof s === 'object' && s !== null ? s.name : String(s)
     );
-    return normalized;
   }, [rawSuggestions]);
 
   const [form, setForm] = useState<WorkoutForm>(initialForm);
   const [isSaving, setIsSaving] = useState(false);
   const [snackbar, setSnackbar] = useState({ visible: false, message: '' });
 
-  const updateWorkoutField = useCallback((field: keyof Pick<WorkoutForm, 'name' | 'notes' | 'duration_mins'>, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  }, []);
+  // ── Listen for save trigger from tab bar ──────────────────────────────────
+  useEffect(() => {
+    if (triggerSaveWorkout !== triggerRef.current) {
+      triggerRef.current = triggerSaveWorkout;
+      if (triggerSaveWorkout > 0) {
+        handleSaveRef.current();
+      }
+    }
+  }, [triggerSaveWorkout]);
+
+  const updateWorkoutField = useCallback(
+    (field: keyof Pick<WorkoutForm, 'name' | 'notes' | 'duration_mins'>, value: string) => {
+      setForm((prev) => ({ ...prev, [field]: value }));
+    },
+    [],
+  );
 
   const updateExerciseField = useCallback((id: string, field: 'name' | 'rpe', value: string) => {
     setForm((prev) => ({
       ...prev,
-      exercises: prev.exercises.map((ex) =>
-        ex.id === id ? { ...ex, [field]: value } : ex
-      ),
+      exercises: prev.exercises.map((ex) => (ex.id === id ? { ...ex, [field]: value } : ex)),
     }));
   }, []);
 
-  const updateSetField = useCallback((exerciseId: string, setId: string, field: 'reps' | 'weight_kg', value: string) => {
-    setForm((prev) => ({
-      ...prev,
-      exercises: prev.exercises.map((ex) =>
-        ex.id === exerciseId
-          ? { ...ex, sets: ex.sets.map((s) => (s.id === setId ? { ...s, [field]: value } : s)) }
-          : ex
-      ),
-    }));
-  }, []);
+  const updateSetField = useCallback(
+    (exerciseId: string, setId: string, field: 'reps' | 'weight_kg', value: string) => {
+      setForm((prev) => ({
+        ...prev,
+        exercises: prev.exercises.map((ex) =>
+          ex.id === exerciseId
+            ? { ...ex, sets: ex.sets.map((s) => (s.id === setId ? { ...s, [field]: value } : s)) }
+            : ex,
+        ),
+      }));
+    },
+    [],
+  );
 
   const addSet = useCallback((exerciseId: string) => {
     setForm((prev) => ({
@@ -444,24 +481,18 @@ export default function NewWorkoutScreen() {
     setForm((prev) => ({
       ...prev,
       exercises: prev.exercises.map((ex) =>
-        ex.id === exerciseId ? { ...ex, sets: ex.sets.filter((s) => s.id !== setId) } : ex
+        ex.id === exerciseId ? { ...ex, sets: ex.sets.filter((s) => s.id !== setId) } : ex,
       ),
     }));
   }, []);
 
   const addExercise = useCallback(() => {
-    setForm((prev) => ({
-      ...prev,
-      exercises: [...prev.exercises, createEmptyExercise()],
-    }));
+    setForm((prev) => ({ ...prev, exercises: [...prev.exercises, createEmptyExercise()] }));
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
   }, []);
 
   const removeExercise = useCallback((id: string) => {
-    setForm((prev) => ({
-      ...prev,
-      exercises: prev.exercises.filter((ex) => ex.id !== id),
-    }));
+    setForm((prev) => ({ ...prev, exercises: prev.exercises.filter((ex) => ex.id !== id) }));
   }, []);
 
   const validate = (): string | null => {
@@ -517,260 +548,364 @@ export default function NewWorkoutScreen() {
       setIsSaving(false);
     }
   };
+  handleSaveRef.current = handleSave;
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: theme.colors.background }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={80}
-    >
-      <ScrollView
-        ref={scrollRef}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+    <View style={s.root}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={80}
       >
-        <View style={styles.headerSection}>
-          <Text variant="headlineSmall" style={[styles.sectionTitle, { color: theme.colors.onBackground }]}>
-            Nuevo Entrenamiento
-          </Text>
-          <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-            Registra tu rutina ejercicio por ejercicio.
-          </Text>
-        </View>
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={s.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
 
-        <Card style={[styles.card, { backgroundColor: theme.colors.surface }]} mode="elevated">
-          <Card.Content style={styles.cardContent}>
-            <Text variant="titleMedium" style={[styles.cardLabel, { color: theme.colors.primary }]}>
-              📋 Info del Entrenamiento
-            </Text>
+          {/* ═══ Info Card (Profile-style) ═══ */}
+          <View style={CARD_STYLE}>
+            <Text style={s.screenTitle}>Registra tu entrenamiento</Text>
+            <View style={s.dateRow}>
+              <MaterialCommunityIcons name="calendar-today" size={14} color={SILVER} />
+              <Text style={s.dateText}>{formatDisplayDate()}</Text>
+            </View>
+
             <TextInput
               mode="outlined"
-              label="Nombre *"
+              label="Nombre de la sesión"
               placeholder="Push Day"
               value={form.name}
               onChangeText={(t) => updateWorkoutField('name', t)}
-              style={styles.input}
               autoCapitalize="words"
               returnKeyType="next"
-              left={<TextInput.Icon icon="dumbbell" />}
-              dense
+              left={<TextInput.Icon icon="dumbbell" color={SILVER} />}
+              style={s.cardInput}
+              theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
+              outlineStyle={OUTLINE_STYLE}
+              textColor={WHITE}
             />
+
+            <TextInput
+              mode="outlined"
+              label="Duración (min)"
+              placeholder="60"
+              value={form.duration_mins}
+              onChangeText={(t) => updateWorkoutField('duration_mins', filterInteger(t))}
+              keyboardType="numeric"
+              returnKeyType="done"
+              left={<TextInput.Icon icon="timer-outline" color={SILVER} />}
+              style={s.cardInput}
+              theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
+              outlineStyle={OUTLINE_STYLE}
+              textColor={WHITE}
+            />
+
             <TextInput
               mode="outlined"
               label="Notas"
               placeholder="Deload..."
               value={form.notes}
               onChangeText={(t) => updateWorkoutField('notes', t)}
-              style={styles.input}
               multiline
               numberOfLines={2}
-              left={<TextInput.Icon icon="note-text-outline" />}
-              dense
+              left={<TextInput.Icon icon="note-text-outline" color={SILVER} />}
+              style={[s.cardInput, { marginBottom: 0 }]}
+              theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
+              outlineStyle={OUTLINE_STYLE}
+              textColor={WHITE}
             />
-            <TextInput
-              mode="outlined"
-              label="Duración (mins)"
-              placeholder="60"
-              value={form.duration_mins}
-              onChangeText={(t) => updateWorkoutField('duration_mins', filterInteger(t))}
-              style={styles.input}
-              keyboardType="numeric"
-              returnKeyType="done"
-              left={<TextInput.Icon icon="timer-outline" />}
-              dense
+          </View>
+
+          {/* ═══ Exercises Section ═══ */}
+          <View style={s.exercisesHeader}>
+            <Text style={s.sectionLabel}>
+              EJERCICIOS ({form.exercises.length})
+            </Text>
+          </View>
+
+          {form.exercises.map((ex, index) => (
+            <ExerciseCard
+              key={ex.id}
+              exercise={ex}
+              exerciseId={ex.id}
+              index={index}
+              onUpdateExercise={updateExerciseField}
+              onUpdateSet={updateSetField}
+              onAddSet={addSet}
+              onRemoveSet={removeSet}
+              onRemoveExercise={removeExercise}
+              canRemove={form.exercises.length > 1}
+              suggestions={suggestions}
             />
-          </Card.Content>
-        </Card>
+          ))}
 
-        <View style={styles.sectionHeader}>
-          <Text variant="titleMedium" style={{ color: theme.colors.onBackground, fontWeight: '700' }}>
-            💪 Ejercicios ({form.exercises.length})
-          </Text>
-        </View>
+          {/* Añadir Ejercicio */}
+          <Pressable onPress={addExercise} style={s.addExerciseBtn}>
+            <MaterialCommunityIcons name="plus" size={18} color={CYBER} />
+            <Text style={s.addExerciseText}>AÑADIR EJERCICIO</Text>
+          </Pressable>
 
-        {form.exercises.map((ex, index) => (
-          <ExerciseCard
-            key={ex.id}
-            exercise={ex}
-            exerciseId={ex.id}
-            index={index}
-            onUpdateExercise={updateExerciseField}
-            onUpdateSet={updateSetField}
-            onAddSet={addSet}
-            onRemoveSet={removeSet}
-            onRemoveExercise={removeExercise}
-            canRemove={form.exercises.length > 1}
-            suggestions={suggestions}
-          />
-        ))}
+          {/* Saving indicator */}
+          {isSaving && (
+            <View style={s.savingBanner}>
+              <ActivityIndicator size="small" color={CYBER} />
+              <Text style={s.savingText}>Guardando...</Text>
+            </View>
+          )}
 
-        <Button
-          mode="outlined"
-          icon="plus-circle-outline"
-          onPress={addExercise}
-          style={styles.addButton}
-          contentStyle={styles.addButtonContent}
-          labelStyle={{ fontSize: 15 }}
-        >
-          Añadir Ejercicio
-        </Button>
-
-        <View style={{ height: 100 }} />
-      </ScrollView>
-
-      <FAB
-        icon={isSaving ? () => <ActivityIndicator size={20} color={theme.colors.onPrimary} /> : 'content-save-outline'}
-        label={isSaving ? 'Guardando...' : 'Guardar'}
-        onPress={handleSave}
-        disabled={isSaving}
-        style={[styles.fab, { backgroundColor: theme.colors.primary }]}
-        color={theme.colors.onPrimary}
-      />
+          <View style={{ height: 32 }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       <Snackbar
         visible={snackbar.visible}
         onDismiss={() => setSnackbar({ visible: false, message: '' })}
         duration={3500}
         action={{ label: 'OK', onPress: () => setSnackbar({ visible: false, message: '' }) }}
+        style={{ backgroundColor: CARD_BG }}
       >
-        {snackbar.message}
+        <Text style={{ color: WHITE }}>{snackbar.message}</Text>
       </Snackbar>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// Styles
+// ═══════════════════════════════════════════════════════════════════════════════
 
-const HORIZONTAL_PADDING = 16;
+const PAD = 16;
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: BLACK,
+  },
   scrollContent: {
-    paddingHorizontal: HORIZONTAL_PADDING,
-    paddingTop: 12,
+    paddingHorizontal: PAD,
+    paddingTop: 24,
     paddingBottom: 24,
   },
+
+  // ── Header ───────────────────────────────────────────────────────────────────
   headerSection: {
-    marginBottom: 16,
-    gap: 4,
+    marginBottom: 24,
   },
-  sectionTitle: {
-    fontWeight: '800',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-    marginTop: 8,
-  },
-  card: {
-    borderRadius: 20,
-    marginBottom: 14,
-    elevation: 2,
-  },
-  exerciseCard: {
-    borderRadius: 16,
-  },
-  cardContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 0,
-  },
-  cardLabel: {
+  screenTitle: {
+    fontSize: 13,
     fontWeight: '700',
-    marginBottom: 12,
-  },
-  exerciseHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  exerciseBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: '#0061FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteBtn: {
-    margin: 0,
-  },
-  divider: {
-    marginBottom: 12,
-  },
-  input: {
-    marginBottom: 10,
-    fontSize: 15,
-  },
-  helperText: {
-    marginTop: -6,
-    marginBottom: 4,
-    marginLeft: 8,
-  },
-  setsSectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 4,
-    marginBottom: 6,
-  },
-  setRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-    gap: 4,
-  },
-  setBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  setField: {
-    flex: 1,
-    fontSize: 14,
-  },
-  removeSetBtn: {
-    margin: 0,
+    color: CYBER,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
     marginLeft: 2,
   },
-  addSetBtn: {
-    borderRadius: 14,
-    marginBottom: 4,
-    marginTop: 2,
+
+  // ── Info Card ────────────────────────────────────────────────────────────────
+  cardInput: {
+    backgroundColor: 'transparent',
+    marginBottom: 16,
   },
-  suggestionsContainer: {
-    borderRadius: 14,
-    marginBottom: 10,
-    zIndex: 9999,
-    elevation: 4,
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    marginBottom: 12,
+    marginLeft: 2,
   },
-  suggestionsInner: {
+  dateText: {
+    fontSize: 12,
+    color: SILVER,
+    fontWeight: '600',
+    fontFamily: 'SpaceMono',
+    textTransform: 'capitalize',
+  },
+
+  // ── Exercises header ─────────────────────────────────────────────────────────
+  exercisesHeader: {
+    marginTop: 8,
+    marginBottom: 16,
+    marginLeft: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: SILVER,
+    letterSpacing: 1.5,
+  },
+
+  // ── Exercise Card ────────────────────────────────────────────────────────────
+  exerciseCard: {
+    backgroundColor: CARD_BG,
+    borderWidth: 1.5,
+    borderColor: BORDER,
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
+  },
+  exerciseCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+
+  // ── Suggestions ──────────────────────────────────────────────────────────────
+  suggestionsWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    padding: 10,
+    marginTop: 8,
+    marginBottom: 12,
   },
-  suggestionChip: {
+  suggestionPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: 'rgba(204,255,0,0.08)',
   },
-  addButton: {
-    borderRadius: 14,
+  suggestionText: {
+    fontSize: 12,
+    color: CYBER,
+    fontWeight: '600',
+  },
+
+  // ── Sets Table ───────────────────────────────────────────────────────────────
+  setTable: {
+    marginTop: 12,
+  },
+  setTableHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  setTableHeaderText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: SILVER,
+    letterSpacing: 1.2,
+  },
+  setTableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 6,
+  },
+  serieLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: WHITE,
+    width: 22,
+    textAlign: 'center',
+    fontFamily: 'SpaceMono',
+    marginLeft: 5,
+    marginRight: 20,
+  },
+  setField: {
+    width: 100,
+    backgroundColor: 'transparent',
+  },
+  removeIcon: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addSetIcon: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // ── RPE ──────────────────────────────────────────────────────────────────────
+  fieldLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: SILVER,
+    letterSpacing: 1.5,
+    marginBottom: 4,
+    marginTop: 12,
+  },
+  rpeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 6,
+  },
+  rpeDot: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rpeDotActive: {
+    backgroundColor: CYBER,
+  },
+  rpeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: MUTED,
+  },
+  rpeTextActive: {
+    color: BLACK,
+  },
+
+  // ── Volume Badge ─────────────────────────────────────────────────────────────
+  volumeBadge: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(204,255,0,0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  volumeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: CYBER,
+    letterSpacing: 0.5,
+    fontFamily: 'SpaceMono',
+  },
+
+  // ── Add Exercise ─────────────────────────────────────────────────────────────
+  addExerciseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1.5,
-    borderStyle: 'dashed',
-    marginTop: 4,
-    height: 52,
+    borderColor: CYBER,
+    borderRadius: 14,
+    paddingVertical: 14,
+    gap: 8,
+    marginBottom: 8,
   },
-  addButtonContent: {
-    height: 52,
+  addExerciseText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: CYBER,
+    letterSpacing: 1.5,
   },
-  fab: {
-    position: 'absolute',
-    right: 16,
-    bottom: 12,
-    borderRadius: 16,
+
+  // ── Saving banner ────────────────────────────────────────────────────────────
+  savingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+  },
+  savingText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: CYBER,
   },
 });

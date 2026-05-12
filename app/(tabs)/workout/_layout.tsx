@@ -15,6 +15,7 @@ export default function WorkoutLayout() {
         name="new"
         options={{
           title: 'Nuevo Entrenamiento',
+          headerShown: true,
           headerBackTitle: 'Atrás',
           presentation: 'card',
           animation: 'slide_from_bottom',

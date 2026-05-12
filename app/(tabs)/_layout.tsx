@@ -1,6 +1,6 @@
 import { useAppStore } from '@/src/store/useAppStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Tabs, router } from 'expo-router';
+import { Tabs, router, useSegments } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from 'react-native-paper';
@@ -86,8 +86,9 @@ const ActionMenuOverlay = ({ visible, onClose, theme, setModalVisible }: any) =>
   );
 };
 
-const AbsoluteMainButton = ({ onPress, isMenuVisible }: any) => {
+const AbsoluteMainButton = ({ onPress, isMenuVisible, isWorkoutNew }: any) => {
   const theme = useTheme();
+  const requestSaveWorkout = useAppStore(state => state.requestSaveWorkout);
   const rotation = useSharedValue(0);
 
   useEffect(() => {
@@ -97,18 +98,30 @@ const AbsoluteMainButton = ({ onPress, isMenuVisible }: any) => {
     });
   }, [isMenuVisible]);
 
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ rotate: `${rotation.value * 135}deg` }]
-    };
-  });
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotation.value * 135}deg` }],
+  }));
+
+  const handlePress = () => {
+    if (isWorkoutNew) {
+      requestSaveWorkout();
+    } else {
+      onPress();
+    }
+  };
 
   return (
     <View style={styles.absoluteMainButtonWrapper} pointerEvents="box-none">
-      <Pressable onPress={onPress}>
-        <Animated.View style={[styles.mainButton, { backgroundColor: theme.colors.primary }, animatedStyle]}>
-          <MaterialCommunityIcons name="plus" size={32} color={theme.colors.background} />
-        </Animated.View>
+      <Pressable onPress={handlePress}>
+        {isWorkoutNew ? (
+          <View style={[styles.mainButton, styles.mainButtonSave]}>
+            <MaterialCommunityIcons name="content-save-outline" size={28} color="#000000" />
+          </View>
+        ) : (
+          <Animated.View style={[styles.mainButton, { backgroundColor: theme.colors.primary }, animatedStyle]}>
+            <MaterialCommunityIcons name="plus" size={32} color={theme.colors.background} />
+          </Animated.View>
+        )}
       </Pressable>
     </View>
   );
@@ -118,6 +131,9 @@ export default function TabLayout() {
   const theme = useTheme();
   const setModalVisible = useAppStore(state => state.setModalVisible);
   const [menuVisible, setMenuVisible] = useState(false);
+
+  const segments = useSegments();
+  const isWorkoutNew = segments[segments.length - 2] === 'workout' && segments[segments.length - 1] === 'new';
 
   return (
     <>
@@ -196,6 +212,7 @@ export default function TabLayout() {
 
       <AbsoluteMainButton 
         isMenuVisible={menuVisible}
+        isWorkoutNew={isWorkoutNew}
         onPress={() => setMenuVisible(!menuVisible)}
       />
     </>
@@ -223,6 +240,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 2 },
+  },
+  mainButtonSave: {
+    backgroundColor: '#CCFF00',
   },
   radialContainer: {
     position: 'absolute',

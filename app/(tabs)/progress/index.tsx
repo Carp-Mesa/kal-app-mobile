@@ -1,20 +1,20 @@
 import { getWorkoutHistory, resolveSets, SetEntry, WorkoutHistoryItem } from '@/src/services/workoutService';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import React, { useMemo, useState } from 'react';
 import {
   Dimensions,
   ScrollView,
   StyleSheet,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import {
   ActivityIndicator,
-  Card,
-  Chip,
-  Surface,
+  Searchbar,
   Text,
-  useTheme,
+  useTheme
 } from 'react-native-paper';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -89,81 +89,84 @@ const groupExercises = (workouts: WorkoutHistoryItem[]): Map<string, ExerciseSes
   return map;
 };
 
-const getTrend = (current: number, previous: number): { label: string; color: string } => {
-  if (current > previous) return { label: '¡Progreso!', color: '#4CAF50' };
-  if (current < previous) return { label: 'Regresión', color: '#FF9800' };
-  return { label: 'Mantuvo', color: '#9E9E9E' };
+const HistoricSessionCard = ({ session, theme }: { session: ExerciseSession, theme: any }) => {
+  return (
+    <View style={{ marginBottom: 20 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <Text style={{ color: theme.colors.onSurface, fontWeight: '800', fontSize: 13 }}>
+          {formatDateShort(session.date)}
+        </Text>
+        <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11, fontWeight: '700' }}>
+          Vol: <Text style={{ color: theme.colors.onSurface }}>{session.volume}kg</Text>
+        </Text>
+      </View>
+
+      <View style={{ gap: 8 }}>
+        {session.sets.map((s, idx) => (
+          <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 2 }}>
+            <Text style={{ width: 60, color: theme.colors.primary, fontFamily: 'SpaceMono', fontSize: 11, fontWeight: '700' }}>
+              Serie {idx + 1}
+            </Text>
+            <Text style={{ flex: 1, color: theme.colors.onSurface, fontFamily: 'SpaceMono', fontSize: 13, fontWeight: '500', textAlign: 'center' }}>
+              {s.weight_kg}kg  <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11 }}>x</Text>  {s.reps}
+            </Text>
+            <View style={{ width: 60 }} />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
 };
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
+const TopCards = ({ lastSession, prevSession, theme }: { lastSession?: ExerciseSession, prevSession?: ExerciseSession, theme: any }) => {
+  const getDiff = (curr: number, prev: number) => {
+    if (!prev || prev === 0) return null;
+    const diff = ((curr - prev) / prev) * 100;
+    return diff;
+  };
 
-const SessionComparisonCard = ({
-  session,
-  index,
-  previousVolume,
-  isPR,
-}: {
-  session: ExerciseSession;
-  index: number;
-  previousVolume?: number;
-  isPR: boolean;
-}) => {
-  const theme = useTheme();
-  const trend = previousVolume !== undefined ? getTrend(session.volume, previousVolume) : null;
-  const labels = ['Actual', 'Anterior', 'Antepasada'];
-  const label = labels[index] || `Hace ${index} sesiones`;
-
+  const diffVol = prevSession ? getDiff(lastSession?.volume || 0, prevSession.volume) : null;
+  const isPositive = diffVol !== null && diffVol > 0;
+  
   return (
-    <Card style={[styles.compareCard, { backgroundColor: theme.colors.surface }]} mode="elevated">
-      <Card.Content style={styles.compareContent}>
-        <View style={styles.compareHeader}>
-          <Text variant="labelLarge" style={{ color: theme.colors.onSurfaceVariant, fontWeight: '700' }}>
-            {label}
+    <View style={{ flexDirection: 'row', gap: 16, marginBottom: 24 }}>
+      <View style={[styles.dashboardCard, { backgroundColor: theme.dark ? '#1A1A1A' : theme.colors.surface, flex: 1, borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1.5 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, marginTop: 6 }}>
+          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>Última Sesión</Text>
+        </View>
+        <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11, marginBottom: 4 }}>
+          {lastSession ? formatDateShort(lastSession.date) : '...'}
+        </Text>
+        <Text style={{ color: theme.colors.onSurface, fontSize: 18, fontWeight: '800', marginBottom: 2 }}>
+          {lastSession?.maxWeight || 0} <Text style={{ fontSize: 11, fontWeight: '500', color: theme.colors.onSurfaceVariant }}>kg máx</Text>
+        </Text>
+        <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.05)', marginVertical: 8 }} />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11 }}>
+            {lastSession?.volume || 0}kg vol.
           </Text>
-          <View style={{ flexDirection: 'row', gap: 6 }}>
-            {isPR && (
-              <Chip compact style={[styles.prChip, { backgroundColor: '#E8F5E9' }]} textStyle={{ color: '#2E7D32', fontSize: 11, fontWeight: '700' }}>
-                🏆 PR
-              </Chip>
-            )}
-            {trend && (
-              <Chip compact style={[styles.trendChip, { backgroundColor: trend.color + '18' }]} textStyle={{ color: trend.color, fontSize: 11, fontWeight: '700' }}>
-                {trend.label}
-              </Chip>
-            )}
-          </View>
+          <Text style={{ color: isPositive ? theme.colors.primary : theme.colors.onSurfaceVariant, fontSize: 11, fontWeight: isPositive ? '700' : '500' }}>
+            {diffVol !== null ? (diffVol > 0 ? `↑ +${diffVol.toFixed(1)}%` : diffVol < 0 ? `↓ ${diffVol.toFixed(1)}%` : 'Sin cambio') : ''}
+          </Text>
         </View>
+      </View>
 
-        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 6 }}>
-          {formatDateShort(session.date)} · {session.workoutName}
-        </Text>
-
-        <Text variant="titleMedium" style={{ color: theme.colors.onSurface, fontWeight: '700', marginBottom: 2 }}>
-          {formatSessionSummary(session.sets)}
-        </Text>
-
-        <View style={styles.compareStats}>
-          <View style={styles.statBox}>
-            <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>Volumen</Text>
-            <Text variant="titleSmall" style={{ color: theme.colors.primary, fontWeight: '700' }}>
-              {Math.round(session.volume).toLocaleString('es-CO')} kg
-            </Text>
-          </View>
-          <View style={styles.statBox}>
-            <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>Reps</Text>
-            <Text variant="titleSmall" style={{ color: theme.colors.onSurface, fontWeight: '700' }}>
-              {session.totalReps}
-            </Text>
-          </View>
-          <View style={styles.statBox}>
-            <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>Peso Máx</Text>
-            <Text variant="titleSmall" style={{ color: theme.colors.onSurface, fontWeight: '700' }}>
-              {session.maxWeight} kg
-            </Text>
-          </View>
+      <View style={[styles.dashboardCard, { backgroundColor: theme.dark ? '#1A1A1A' : theme.colors.surface, flex: 1, borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1.5 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, marginTop: 6 }}>
+          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>Penúltima Sesión</Text>
         </View>
-      </Card.Content>
-    </Card>
+        <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11, marginBottom: 4 }}>
+          {prevSession ? formatDateShort(prevSession.date) : '...'}
+        </Text>
+        <Text style={{ color: theme.colors.onSurface, fontSize: 18, fontWeight: '800', marginBottom: 2 }}>
+          {prevSession?.maxWeight || 0} <Text style={{ fontSize: 11, fontWeight: '500', color: theme.colors.onSurfaceVariant }}>kg máx</Text>
+        </Text>
+        <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.05)', marginVertical: 8 }} />
+        <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11 }}>
+          {prevSession?.volume || 0}kg vol.
+        </Text>
+      </View>
+    </View>
   );
 };
 
@@ -178,31 +181,36 @@ const VolumeChart = ({ sessions }: { sessions: ExerciseSession[] }) => {
   }, [sessions]);
 
   const chartConfig = {
-    backgroundGradientFrom: theme.colors.surface,
-    backgroundGradientTo: theme.colors.surface,
-    color: (opacity = 1) => `rgba(0, 97, 255, ${opacity})`,
+    backgroundGradientFrom: theme.dark ? '#1A1A1A' : theme.colors.surface,
+    backgroundGradientTo: theme.dark ? '#1A1A1A' : theme.colors.surface,
+    color: (opacity = 1) => `rgba(204, 255, 0, ${opacity})`,
     labelColor: () => theme.colors.onSurfaceVariant,
     strokeWidth: 3,
     decimalPlaces: 0,
-    propsForDots: { r: '5', strokeWidth: '2', stroke: theme.colors.primary },
-    propsForBackgroundLines: { strokeDasharray: '4', strokeWidth: 1, stroke: theme.colors.outlineVariant },
+    propsForDots: { r: '4', strokeWidth: '2', stroke: theme.colors.primary },
+    propsForBackgroundLines: { strokeDasharray: '4', strokeWidth: 1, stroke: 'rgba(255,255,255,0.05)' },
   };
 
+  const chartWidth = SCREEN_WIDTH - 64; // accounting for container and card padding
+
   return (
-    <View style={[styles.chartCard, { backgroundColor: theme.colors.surface }]}>
+    <View style={[styles.dashboardCard, { backgroundColor: theme.dark ? '#1A1A1A' : theme.colors.surface, borderColor: 'rgba(255, 255, 255, 0.15)', borderWidth: 1.5 }]}>
       <Text variant="titleMedium" style={{ color: theme.colors.onSurface, fontWeight: '700', marginBottom: 12 }}>
         📈 Evolución de Volumen
       </Text>
-      <LineChart
-        data={{ labels: chartData.labels, datasets: [{ data: chartData.values }] }}
-        width={CHART_WIDTH}
-        height={220}
-        chartConfig={chartConfig}
-        bezier
-        style={{ borderRadius: 12 }}
-        fromZero
-        withInnerLines
-      />
+      <View style={{ marginTop: 8 }}>
+        <LineChart
+          data={{ labels: chartData.labels, datasets: [{ data: chartData.values }] }}
+          width={chartWidth}
+          height={260}
+          chartConfig={chartConfig}
+          bezier
+          style={{ borderRadius: 12, marginLeft: -16 }}
+          fromZero
+          withInnerLines
+          verticalLabelRotation={30}
+        />
+      </View>
     </View>
   );
 };
@@ -218,6 +226,8 @@ export default function ProgressScreen() {
 
   const [selectedExercise, setSelectedExercise] = useState<string | null>(null);
 
+  const [searchQuery, setSearchQuery] = useState('');
+
   const grouped = useMemo(() => {
     if (!data?.data) return new Map<string, ExerciseSession[]>();
     return groupExercises(data.data);
@@ -232,6 +242,11 @@ export default function ProgressScreen() {
     });
     return names;
   }, [grouped]);
+
+  const filteredNames = useMemo(() => {
+    if (!searchQuery) return [];
+    return exerciseNames.filter(name => name.toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [searchQuery, exerciseNames]);
 
   const selectedSessions = selectedExercise ? grouped.get(selectedExercise) ?? [] : [];
   const lastThree = selectedSessions.slice(0, 3);
@@ -281,81 +296,83 @@ export default function ProgressScreen() {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.header}>
-        <Text
-          variant="headlineSmall"
-          style={[styles.greeting, { color: theme.colors.onBackground }]}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-        >
-          Análisis de Progreso
-        </Text>
-        <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-          Compara tus ejercicios y mide tu evolución.
-        </Text>
-      </View>
-
-      {/* Exercise Selector */}
-      <Surface style={[styles.selectorSurface, { backgroundColor: theme.colors.surface }]} elevation={1}>
-        <Text variant="labelLarge" style={{ color: theme.colors.onSurfaceVariant, fontWeight: '700', marginBottom: 10 }}>
-          Selecciona un ejercicio
-        </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroll}>
-          {exerciseNames.map((name) => {
-            const isSelected = selectedExercise === name;
-            return (
-              <Chip
+      <View style={{ marginBottom: 24 }}>
+        <Searchbar
+          placeholder="Buscar ejercicio (ej. Press Militar)"
+          onChangeText={(text) => {
+            setSearchQuery(text);
+            if (selectedExercise && text !== selectedExercise) {
+              setSelectedExercise(null);
+            }
+          }}
+          onClearIconPress={() => {
+            setSearchQuery('');
+            setSelectedExercise(null);
+          }}
+          value={searchQuery}
+          style={{ backgroundColor: theme.dark ? '#1c1c1e' : theme.colors.surface, borderRadius: 16 }}
+          iconColor={theme.colors.onSurfaceVariant}
+          inputStyle={{ color: theme.colors.onSurface }}
+        />
+        {!selectedExercise && (
+          <View style={{ marginTop: 8, backgroundColor: theme.dark ? '#1c1c1e' : theme.colors.surface, borderRadius: 16, overflow: 'hidden' }}>
+            {(searchQuery ? filteredNames : exerciseNames).slice(0, 8).map((name, index, arr) => (
+              <TouchableOpacity
                 key={name}
-                selected={isSelected}
-                showSelectedOverlay
-                onPress={() => setSelectedExercise(name)}
-                style={[
-                  styles.exerciseChip,
-                  {
-                    backgroundColor: isSelected ? theme.colors.primaryContainer : theme.colors.surfaceVariant,
-                  },
-                ]}
-                textStyle={{
-                  color: isSelected ? theme.colors.onPrimaryContainer : theme.colors.onSurfaceVariant,
-                  fontWeight: isSelected ? '700' : '500',
+                onPress={() => {
+                  setSelectedExercise(name);
+                  setSearchQuery(name);
+                }}
+                style={{
+                  padding: 16,
+                  borderBottomWidth: index === arr.length - 1 ? 0 : 1,
+                  borderBottomColor: 'rgba(255,255,255,0.05)',
+                  flexDirection: 'row',
+                  alignItems: 'center'
                 }}
               >
-                {name}
-              </Chip>
-            );
-          })}
-        </ScrollView>
-      </Surface>
+                <MaterialCommunityIcons name="dumbbell" size={20} color={theme.colors.onSurfaceVariant} style={{ marginRight: 12 }} />
+                <Text style={{ color: theme.colors.onSurface, fontSize: 15 }}>{name}</Text>
+              </TouchableOpacity>
+            ))}
+            {(searchQuery ? filteredNames : exerciseNames).length === 0 && (
+              <View style={{ padding: 16 }}>
+                <Text style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center' }}>No se encontraron ejercicios</Text>
+              </View>
+            )}
+          </View>
+        )}
+      </View>
 
-      {/* Comparison */}
-      {selectedExercise && lastThree.length > 0 && (
-        <View style={styles.comparisonSection}>
-          <Text variant="titleMedium" style={{ color: theme.colors.onBackground, fontWeight: '700', marginBottom: 12 }}>
-            Últimas sesiones: {selectedExercise}
+      {!selectedExercise ? (
+        <View style={styles.centered}>
+          <Text style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center', marginTop: 32 }}>
+            Busca un ejercicio para ver tu evolución.
           </Text>
+        </View>
+      ) : (
+        <View style={{ flex: 1 }}>
+          <TopCards lastSession={selectedSessions[0]} prevSession={selectedSessions[1]} theme={theme} />
 
-          {lastThree.map((session, idx) => (
-            <SessionComparisonCard
-              key={`${session.workoutId}-${session.date}`}
-              session={session}
-              index={idx}
-              previousVolume={idx < lastThree.length - 1 ? lastThree[idx + 1].volume : undefined}
-              isPR={session.volume >= maxVolume * 0.99}
-            />
-          ))}
+          <Text style={{ color: theme.colors.onSurface, fontSize: 16, fontWeight: '800', marginBottom: 16 }}>Historial Detallado</Text>
+          
+          <View style={[styles.dashboardCard, { backgroundColor: theme.dark ? '#1A1A1A' : theme.colors.surface, borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1.5, borderRadius: 20, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 0, marginBottom: 24 }]}>
+            {selectedSessions.slice(0, 5).map((session, idx) => (
+              <React.Fragment key={idx}>
+                <HistoricSessionCard session={session} theme={theme} />
+                {idx < Math.min(selectedSessions.length, 5) - 1 && (
+                  <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.05)', marginBottom: 20, marginHorizontal: -20 }} />
+                )}
+              </React.Fragment>
+            ))}
+          </View>
 
           {selectedSessions.length > 1 && (
-            <View style={styles.chartSection}>
+            <View style={{ marginBottom: 24 }}>
               <VolumeChart sessions={selectedSessions} />
             </View>
           )}
         </View>
-      )}
-
-      {selectedExercise && lastThree.length === 0 && (
-        <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, textAlign: 'center', marginTop: 24 }}>
-          No hay sesiones registradas para este ejercicio.
-        </Text>
       )}
 
       <View style={{ height: 40 }} />
@@ -378,71 +395,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 32,
   },
-  header: {
-    marginBottom: 20,
-    gap: 4,
-  },
-  greeting: {
-    fontWeight: '800',
-  },
-  selectorSurface: {
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 16,
-  },
-  chipScroll: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingBottom: 4,
-  },
-  exerciseChip: {
+  dashboardCard: {
     borderRadius: 20,
-    height: 36,
-  },
-  comparisonSection: {
-    gap: 10,
-  },
-  compareCard: {
-    borderRadius: 16,
-    marginBottom: 4,
-  },
-  compareContent: {
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-  },
-  compareHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  prChip: {
-    borderRadius: 20,
-    height: 26,
-  },
-  trendChip: {
-    borderRadius: 20,
-    height: 26,
-  },
-  compareStats: {
-    flexDirection: 'row',
-    gap: 16,
-    marginTop: 10,
-  },
-  statBox: {
-    flex: 1,
-    backgroundColor: 'rgba(103,80,164,0.06)',
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    alignItems: 'center',
-  },
-  chartSection: {
-    marginTop: 8,
-  },
-  chartCard: {
-    borderRadius: 16,
     padding: 16,
-    elevation: 2,
   },
 });

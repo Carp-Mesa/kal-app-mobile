@@ -11,9 +11,29 @@ import {
   useTheme
 } from 'react-native-paper';
 
+/**
+ * Parsea una fecha `YYYY-MM-DD` en hora local, sin desplazamiento UTC.
+ */
+const parseLocalDate = (dateStr: string): Date => {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+};
+
+/**
+ * Devuelve el lunes de la semana actual (hora local 00:00:00).
+ * En Colombia la semana empieza el lunes.
+ */
+const getMonday = (ref: Date): Date => {
+  const d = new Date(ref);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return d;
+};
+
 const formatDate = (dateStr: string): string => {
-  const [year, month, day] = dateStr.split('-');
-  return new Date(Number(year), Number(month) - 1, Number(day)).toLocaleDateString('es-CO', {
+  return parseLocalDate(dateStr).toLocaleDateString('es-CO', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -166,15 +186,14 @@ export default function WorkoutIndexScreen() {
 
   const workouts = useMemo(() => {
     let all = data?.pages.flatMap(p => p.data) ?? [];
-    const now = new Date();
-    
+    const today = new Date();
+
     if (filter === 'Esta semana') {
-      const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay() + 1));
-      startOfWeek.setHours(0,0,0,0);
-      all = all.filter(w => new Date(w.date) >= startOfWeek);
+      const startOfWeek = getMonday(today);
+      all = all.filter(w => parseLocalDate(w.date) >= startOfWeek);
     } else if (filter === 'Mes') {
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      all = all.filter(w => new Date(w.date) >= startOfMonth);
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      all = all.filter(w => parseLocalDate(w.date) >= startOfMonth);
     }
     return all;
   }, [data, filter]);

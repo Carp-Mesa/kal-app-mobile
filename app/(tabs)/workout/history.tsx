@@ -1,9 +1,9 @@
 import { useWorkoutHistory } from '@/src/hooks/useWorkoutHistory';
+import { WorkoutCardSkeleton } from '@/src/components/GainsSkeleton';
 import { resolveSets, SetEntry, WorkoutHistoryItem } from '@/src/services/workoutService';
 import React, { useState } from 'react';
 import { FlatList, ScrollView, StyleSheet, View } from 'react-native';
 import {
-    ActivityIndicator,
     Button,
     Card,
     Chip,
@@ -149,11 +149,11 @@ export default function WorkoutHistoryScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.centered, { backgroundColor: theme.colors.background }]}>
-        <ActivityIndicator animating size="large" color={theme.colors.primary} />
-        <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, marginTop: 12 }}>
-          Cargando historial…
-        </Text>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <WorkoutCardSkeleton />
+        <WorkoutCardSkeleton />
+        <WorkoutCardSkeleton />
+        <WorkoutCardSkeleton />
       </View>
     );
   }

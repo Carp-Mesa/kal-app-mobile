@@ -1,13 +1,14 @@
 import { NutritionModal } from '@/src/components/modals/NutritionModal';
 import { SleepModal } from '@/src/components/modals/SleepModal';
 import { WaterModal } from '@/src/components/modals/WaterModal';
+import { DashboardSkeleton, FadeIn, GainsSkeleton } from '@/src/components/GainsSkeleton';
 import { useTodaySleep } from '@/src/hooks/useSleep';
 import api from '@/src/services/apiClient';
 import { getProfile } from '@/src/services/profileService';
-import { useAppStore } from '@/src/store/useAppStore';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
+import { useAppStore } from '@/src/store/useAppStore';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Dimensions,
@@ -16,8 +17,9 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
+import { LineChart } from 'react-native-chart-kit';
 import {
-  ActivityIndicator,
   Card,
   HelperText,
   Portal,
@@ -26,7 +28,6 @@ import {
   TextInput,
   useTheme,
 } from 'react-native-paper';
-import Svg, { Circle } from 'react-native-svg';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CHART_WIDTH = SCREEN_WIDTH - 72;
@@ -293,7 +294,7 @@ export default function DashboardScreen() {
   const modalVisible = useAppStore((state) => state.modalVisible);
   const setModalVisible = useAppStore((state) => state.setModalVisible);
   const { data, isLoading, refetch } = useQuery({ queryKey: ['progressToday'], queryFn: fetchProgress });
-  const { data: profile } = useQuery({ queryKey: ['profile'], queryFn: getProfile });
+  const { data: profile, isLoading: isProfileLoading } = useQuery({ queryKey: ['profile'], queryFn: getProfile });
   const { data: sleepData, refetch: refetchSleep } = useTodaySleep();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -324,24 +325,33 @@ export default function DashboardScreen() {
       >
         {/* ── Greeting ───────────────────────────────────────────── */}
         <View style={styles.greetingSection}>
-          <Text
-            variant="headlineMedium"
-            style={[styles.greeting, { color: theme.colors.onBackground }]}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-          >
-            Hola, {firstName}
-          </Text>
-          <Text variant="titleMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-            Hoy, {new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long' }).replace(' de ', ' de ')}
-          </Text>
+          {isProfileLoading ? (
+            <>
+              <GainsSkeleton width={180} height={32} borderRadius={8} style={{ marginBottom: 8 }} />
+              <GainsSkeleton width={140} height={16} borderRadius={6} />
+            </>
+          ) : (
+            <FadeIn>
+              <Text
+                variant="headlineMedium"
+                style={[styles.greeting, { color: theme.colors.onBackground }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                Hola, {firstName}
+              </Text>
+              <Text variant="titleMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+                Hoy, {new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long' }).replace(' de ', ' de ')}
+              </Text>
+            </FadeIn>
+          )}
         </View>
 
         {/* ── Grid ───────────────────────────────────────────────── */}
         {isLoading && !refreshing ? (
-          <ActivityIndicator animating size="large" style={{ marginTop: 40 }} />
+          <DashboardSkeleton />
         ) : (
-          <>
+          <FadeIn>
             {/* Row 1: Agua + Nutrición */}
             <View style={styles.gridRow}>
               <CircularProgressCard
@@ -375,7 +385,7 @@ export default function DashboardScreen() {
               mainValue={`${sleptHours}h ${sleptMins}m`}
               subtitle="Horas dormidas"
             />
-          </>
+          </FadeIn>
         )}
 
       </ScrollView>

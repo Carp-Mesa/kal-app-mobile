@@ -1,11 +1,11 @@
 import { useWorkoutHistory } from '@/src/hooks/useWorkoutHistory';
+import { WorkoutCardSkeleton, GainsSkeleton } from '@/src/components/GainsSkeleton';
 import { resolveSets, WorkoutHistoryItem } from '@/src/services/workoutService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 import {
-  ActivityIndicator,
   Button,
   Text,
   useTheme
@@ -217,11 +217,16 @@ export default function WorkoutIndexScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.centered, { backgroundColor: theme.colors.background }]}>
-        <ActivityIndicator animating size="large" color={theme.colors.primary} />
-        <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, marginTop: 12 }}>
-          Cargando historial…
-        </Text>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <View style={{ marginBottom: 16, paddingTop: 16 }}>
+          <View style={{ paddingBottom: 16 }}>
+            <FilterTabs selected={filter} onSelect={setFilter} theme={theme} />
+          </View>
+          <GainsSkeleton width={160} height={16} borderRadius={8} style={{ alignSelf: 'center' }} />
+        </View>
+        <WorkoutCardSkeleton />
+        <WorkoutCardSkeleton />
+        <WorkoutCardSkeleton />
       </View>
     );
   }

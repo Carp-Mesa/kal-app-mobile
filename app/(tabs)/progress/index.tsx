@@ -1,4 +1,5 @@
 import { getWorkoutHistory, resolveSets, SetEntry, WorkoutHistoryItem } from '@/src/services/workoutService';
+import { ProgressSkeleton, FadeIn } from '@/src/components/GainsSkeleton';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import React, { useMemo, useState } from 'react';
@@ -11,7 +12,6 @@ import {
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import {
-  ActivityIndicator,
   Searchbar,
   Text,
   useTheme
@@ -256,11 +256,8 @@ export default function ProgressScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.centered, { backgroundColor: theme.colors.background }]}>
-        <ActivityIndicator animating size="large" color={theme.colors.primary} />
-        <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, marginTop: 12 }}>
-          Analizando datos…
-        </Text>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <ProgressSkeleton />
       </View>
     );
   }
@@ -291,6 +288,7 @@ export default function ProgressScreen() {
   }
 
   return (
+    <FadeIn style={{ flex: 1 }}>
     <ScrollView
       style={[styles.container, { backgroundColor: theme.colors.background }]}
       contentContainerStyle={styles.content}
@@ -377,6 +375,7 @@ export default function ProgressScreen() {
 
       <View style={{ height: 40 }} />
     </ScrollView>
+    </FadeIn>
   );
 }
 

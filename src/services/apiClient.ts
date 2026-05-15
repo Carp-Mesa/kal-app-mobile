@@ -1,6 +1,7 @@
 import axios, { InternalAxiosRequestConfig } from 'axios';
 import { router } from 'expo-router';
 import { useAuthStore } from '../store/useAuthStore';
+import { supabase } from './supabaseClient';
 
 const apiClient = axios.create({
   baseURL: process.env.EXPO_PUBLIC_API_URL,
@@ -41,14 +42,10 @@ apiClient.interceptors.response.use(
 
     console.log(`[Response Error] Status: ${error.response?.status} | URL: ${originalRequest?.url}`);
 
-    if (originalRequest?.url?.includes('/auth/refresh')) {
-      return Promise.reject(error);
-    }
-
-    // Evitamos reintentos infinitos y no intentamos refresh si es la misma ruta de refresh
+    // Evitamos reintentos infinitos
     if (
-      error.response?.status === 401 && 
-      originalRequest && 
+      error.response?.status === 401 &&
+      originalRequest &&
       !originalRequest._retry
     ) {
       if (isRefreshing) {
@@ -77,20 +74,22 @@ apiClient.interceptors.response.use(
       }
 
       try {
-        console.log(`[Refresh] Iniciando renovación con: ${currentRefreshToken.substring(0, 10)}...`);
-        // Usamos axios base para no trigerear los interceptores de nuevo si falla
-        const response = await axios.post(`${process.env.EXPO_PUBLIC_API_URL}/auth/refresh`, {
+        console.log(`[Refresh] Iniciando renovación con Supabase...`);
+
+        // Llamamos a Supabase para refrescar la sesión
+        const { data, error: refreshError } = await supabase.auth.refreshSession({
           refresh_token: currentRefreshToken,
         });
 
-        const access_token = response.data.access_token;
-        const refresh_token = response.data.refresh_token;
-
-        if (!access_token || !refresh_token) {
-            throw new Error("No token returned");
+        if (refreshError || !data.session) {
+          throw refreshError || new Error('No session returned from Supabase');
         }
 
-        console.log(`[Refresh] ÉXITO. Nuevo Access Token: ${access_token.substring(0, 10)}...`);
+        const access_token = data.session.access_token;
+        const refresh_token = data.session.refresh_token;
+
+        console.log(`🔄 Token refrescado con éxito`);
+        console.log(`[Refresh] Nuevo Access Token: ${access_token.substring(0, 10)}...`);
 
         // Actualizamos store
         authStore.setTokens(access_token, refresh_token);

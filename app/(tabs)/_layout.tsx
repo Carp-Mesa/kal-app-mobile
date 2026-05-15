@@ -3,7 +3,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Tabs, router, useSegments } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useTheme } from 'react-native-paper';
+import { Portal, useTheme } from 'react-native-paper';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 const TARGET_POSITIONS = [
@@ -86,9 +86,11 @@ const ActionMenuOverlay = ({ visible, onClose, theme, setModalVisible }: any) =>
   );
 };
 
-const AbsoluteMainButton = ({ onPress, isMenuVisible, isWorkoutNew }: any) => {
+const AbsoluteMainButton = ({ onPress, isMenuVisible, isWorkoutNew, isModalVisible }: any) => {
   const theme = useTheme();
   const requestSaveWorkout = useAppStore(state => state.requestSaveWorkout);
+  const requestSaveModal = useAppStore(state => state.requestSaveModal);
+  const setModalVisible = useAppStore(state => state.setModalVisible);
   const rotation = useSharedValue(0);
 
   useEffect(() => {
@@ -105,6 +107,8 @@ const AbsoluteMainButton = ({ onPress, isMenuVisible, isWorkoutNew }: any) => {
   const handlePress = () => {
     if (isWorkoutNew) {
       requestSaveWorkout();
+    } else if (isModalVisible) {
+      requestSaveModal();
     } else {
       onPress();
     }
@@ -116,6 +120,10 @@ const AbsoluteMainButton = ({ onPress, isMenuVisible, isWorkoutNew }: any) => {
         {isWorkoutNew ? (
           <View style={[styles.mainButton, styles.mainButtonSave]}>
             <MaterialCommunityIcons name="content-save-outline" size={28} color="#000000" />
+          </View>
+        ) : isModalVisible ? (
+          <View style={[styles.mainButton, styles.mainButtonSave, styles.mainButtonGlow]}>
+            <MaterialCommunityIcons name="check" size={32} color="#000000" />
           </View>
         ) : (
           <Animated.View style={[styles.mainButton, { backgroundColor: theme.colors.primary }, animatedStyle]}>
@@ -130,7 +138,10 @@ const AbsoluteMainButton = ({ onPress, isMenuVisible, isWorkoutNew }: any) => {
 export default function TabLayout() {
   const theme = useTheme();
   const setModalVisible = useAppStore(state => state.setModalVisible);
+  const modalVisible = useAppStore(state => state.modalVisible);
   const [menuVisible, setMenuVisible] = useState(false);
+
+  const isModalVisible = modalVisible !== 'none';
 
   const segments = useSegments();
   const isWorkoutNew = segments[segments.length - 2] === 'workout' && segments[segments.length - 1] === 'new';
@@ -204,17 +215,24 @@ export default function TabLayout() {
       </Tabs>
 
       <ActionMenuOverlay
-        visible={menuVisible}
+        visible={menuVisible && !isModalVisible}
         onClose={() => setMenuVisible(false)}
         theme={theme}
         setModalVisible={setModalVisible}
       />
 
-      <AbsoluteMainButton 
-        isMenuVisible={menuVisible}
-        isWorkoutNew={isWorkoutNew}
-        onPress={() => setMenuVisible(!menuVisible)}
-      />
+      <Portal>
+        <AbsoluteMainButton 
+          isMenuVisible={menuVisible && !isModalVisible}
+          isWorkoutNew={isWorkoutNew}
+          isModalVisible={isModalVisible}
+          onPress={() => {
+            if (!isModalVisible) {
+              setMenuVisible(!menuVisible);
+            }
+          }}
+        />
+      </Portal>
     </>
   );
 }
@@ -222,10 +240,10 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   absoluteMainButtonWrapper: {
     position: 'absolute',
-    bottom: 24, // Matches the 64px tab bar with the top:-20 offset conceptually
+    bottom: 24,
     alignSelf: 'center',
-    zIndex: 200, // Always above the overlay (zIndex 100)
-    elevation: 20,
+    zIndex: 9999,
+    elevation: 9999,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -243,6 +261,13 @@ const styles = StyleSheet.create({
   },
   mainButtonSave: {
     backgroundColor: '#CCFF00',
+  },
+  mainButtonGlow: {
+    shadowColor: '#CCFF00',
+    shadowOpacity: 0.95,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 24,
   },
   radialContainer: {
     position: 'absolute',

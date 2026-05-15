@@ -1,0 +1,279 @@
+import { useLogNutrition } from '@/src/hooks/useLogs';
+import { useAppStore } from '@/src/store/useAppStore';
+import React, { useEffect, useMemo, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { HelperText, Switch, Text, TextInput } from 'react-native-paper';
+import { CyberModal } from './CyberModal';
+
+const CYBER_LIME = '#CCFF00';
+const COLOR_PROTEIN = '#2196F3'; // Azul
+const COLOR_CARBS = '#FF9800';   // Naranja
+const COLOR_FATS = '#E91E63';    // Magenta
+
+interface NutritionModalProps {
+  visible: boolean;
+  onDismiss: () => void;
+  onSuccess?: () => void;
+}
+
+function round(val: number): number {
+  return Math.round(val);
+}
+
+export const NutritionModal: React.FC<NutritionModalProps> = ({ visible, onDismiss, onSuccess }) => {
+  const triggerSaveModal = useAppStore((state) => state.triggerSaveModal);
+  const [name, setName] = useState('');
+  const [calories, setCalories] = useState('');
+  const [autoCalc, setAutoCalc] = useState(true);
+  const [protein, setProtein] = useState('');
+  const [carbs, setCarbs] = useState('');
+  const [fats, setFats] = useState('');
+  const [error, setError] = useState('');
+  const nutritionMut = useLogNutrition();
+
+  const calNum = useMemo(() => {
+    const c = parseInt(calories.replace(/[^0-9]/g, ''), 10);
+    return isNaN(c) ? 0 : c;
+  }, [calories]);
+
+  const computedMacros = useMemo(() => {
+    if (calNum <= 0) return { protein: 0, carbs: 0, fats: 0 };
+    // Split: 30% protein (4 kcal/g), 40% carbs (4 kcal/g), 30% fats (9 kcal/g)
+    const p = round((calNum * 0.30) / 4);
+    const c = round((calNum * 0.40) / 4);
+    const f = round((calNum * 0.30) / 9);
+    return { protein: p, carbs: c, fats: f };
+  }, [calNum]);
+
+  const finalMacros = useMemo(() => {
+    if (autoCalc && calNum > 0) {
+      return computedMacros;
+    }
+    return {
+      protein: parseInt(protein.replace(/[^0-9]/g, ''), 10) || 0,
+      carbs: parseInt(carbs.replace(/[^0-9]/g, ''), 10) || 0,
+      fats: parseInt(fats.replace(/[^0-9]/g, ''), 10) || 0,
+    };
+  }, [autoCalc, calNum, computedMacros, protein, carbs, fats]);
+
+  const macroBars = useMemo(() => {
+    if (calNum <= 0) return { pPct: 0, cPct: 0, fPct: 0 };
+    const totalKcalFromMacros = finalMacros.protein * 4 + finalMacros.carbs * 4 + finalMacros.fats * 9;
+    if (totalKcalFromMacros === 0) return { pPct: 0, cPct: 0, fPct: 0 };
+    return {
+      pPct: Math.min(100, (finalMacros.protein * 4 / totalKcalFromMacros) * 100),
+      cPct: Math.min(100, (finalMacros.carbs * 4 / totalKcalFromMacros) * 100),
+      fPct: Math.min(100, (finalMacros.fats * 9 / totalKcalFromMacros) * 100),
+    };
+  }, [calNum, finalMacros]);
+
+  const handleSave = () => {
+    if (nutritionMut.isPending) return;
+    const cal = calNum;
+    if (cal <= 0) {
+      setError('Ingresa las calorías');
+      return;
+    }
+    if (!name.trim()) {
+      setError('Ingresa el nombre de la comida');
+      return;
+    }
+    const macros = finalMacros;
+    if (!autoCalc && (macros.protein <= 0 && macros.carbs <= 0 && macros.fats <= 0)) {
+      setError('Ingresa al menos un macro');
+      return;
+    }
+    setError('');
+    nutritionMut.mutate({
+      meal_name: name.trim(),
+      calories: cal,
+      protein: macros.protein,
+      carbs: macros.carbs,
+      fats: macros.fats,
+      is_cheat_meal: false,
+    }, {
+      onSuccess: () => {
+        setName('');
+        setCalories('');
+        setProtein('');
+        setCarbs('');
+        setFats('');
+        onSuccess?.();
+        onDismiss();
+      },
+      onError: () => setError('Error al registrar la comida.'),
+    });
+  };
+
+  useEffect(() => {
+    if (visible) setError('');
+  }, [visible]);
+
+  useEffect(() => {
+    if (visible && triggerSaveModal > 0) {
+      handleSave();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [triggerSaveModal]);
+
+  const MacroBar = ({ label, value, color, pct }: { label: string; value: number; color: string; pct: number }) => (
+    <View style={styles.macroBarContainer}>
+      <View style={styles.macroBarHeader}>
+        <Text style={styles.macroLabel}>{label}</Text>
+        <Text style={[styles.macroValue, { color }]}>{value}g</Text>
+      </View>
+      <View style={styles.macroBarTrack}>
+        <View style={[styles.macroBarFill, { width: `${pct}%`, backgroundColor: color }]} />
+      </View>
+    </View>
+  );
+
+  return (
+    <CyberModal visible={visible} onDismiss={onDismiss} title="Registro de nutrición">
+      <TextInput
+        mode="outlined"
+        label="Nombre de la comida"
+        value={name}
+        onChangeText={setName}
+        placeholder="Ej: Almuerzo"
+        style={styles.input}
+        outlineColor="rgba(255,255,255,0.2)"
+        activeOutlineColor={CYBER_LIME}
+        textColor="#FFFFFF"
+        theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
+      />
+      <TextInput
+        mode="outlined"
+        label="Calorías"
+        value={calories}
+        onChangeText={(t) => { setCalories(t.replace(/[^0-9]/g, '')); setError(''); }}
+        placeholder="Ej: 500"
+        keyboardType="numeric"
+        style={styles.input}
+        outlineColor="rgba(255,255,255,0.2)"
+        activeOutlineColor={CYBER_LIME}
+        textColor="#FFFFFF"
+        theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
+        left={<TextInput.Icon icon="fire" color="rgba(255,255,255,0.5)" />}
+      />
+
+      <View style={styles.autoCalcRow}>
+        <Text style={styles.autoCalcLabel}>Autocalcular macros</Text>
+        <Switch
+          value={autoCalc}
+          onValueChange={setAutoCalc}
+          color={CYBER_LIME}
+        />
+      </View>
+
+      {calNum > 0 && (
+        <View style={styles.barsSection}>
+          <MacroBar label="Proteína" value={finalMacros.protein} color={COLOR_PROTEIN} pct={macroBars.pPct} />
+          <MacroBar label="Carbos" value={finalMacros.carbs} color={COLOR_CARBS} pct={macroBars.cPct} />
+          <MacroBar label="Grasa" value={finalMacros.fats} color={COLOR_FATS} pct={macroBars.fPct} />
+        </View>
+      )}
+
+      {!autoCalc && (
+        <View style={styles.manualMacrosRow}>
+          <TextInput
+            mode="outlined"
+            label="Prot (g)"
+            value={protein}
+            onChangeText={(t) => setProtein(t.replace(/[^0-9]/g, ''))}
+            keyboardType="numeric"
+            style={[styles.smallInput, { marginRight: 6 }]}
+            outlineColor="rgba(255,255,255,0.2)"
+            activeOutlineColor={COLOR_PROTEIN}
+            textColor="#FFFFFF"
+            theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
+          />
+          <TextInput
+            mode="outlined"
+            label="Carb (g)"
+            value={carbs}
+            onChangeText={(t) => setCarbs(t.replace(/[^0-9]/g, ''))}
+            keyboardType="numeric"
+            style={[styles.smallInput, { marginHorizontal: 6 }]}
+            outlineColor="rgba(255,255,255,0.2)"
+            activeOutlineColor={COLOR_CARBS}
+            textColor="#FFFFFF"
+            theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
+          />
+          <TextInput
+            mode="outlined"
+            label="Gras (g)"
+            value={fats}
+            onChangeText={(t) => setFats(t.replace(/[^0-9]/g, ''))}
+            keyboardType="numeric"
+            style={[styles.smallInput, { marginLeft: 6 }]}
+            outlineColor="rgba(255,255,255,0.2)"
+            activeOutlineColor={COLOR_FATS}
+            textColor="#FFFFFF"
+            theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
+          />
+        </View>
+      )}
+
+      {error ? <HelperText type="error" visible style={{ color: '#FF4444', marginTop: 8 }}>{error}</HelperText> : null}
+    </CyberModal>
+  );
+};
+
+const styles = StyleSheet.create({
+  input: {
+    backgroundColor: 'transparent',
+    marginBottom: 10,
+  },
+  autoCalcRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  autoCalcLabel: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  barsSection: {
+    marginBottom: 8,
+  },
+  macroBarContainer: {
+    marginBottom: 10,
+  },
+  macroBarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  macroLabel: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  macroValue: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  macroBarTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+  },
+  macroBarFill: {
+    height: 6,
+    borderRadius: 3,
+  },
+  manualMacrosRow: {
+    flexDirection: 'row',
+    marginTop: 8,
+  },
+  smallInput: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+});

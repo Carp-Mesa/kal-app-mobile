@@ -9,12 +9,14 @@ interface AppState {
   themeMode: 'light' | 'dark';
   modalVisible: ModalType;
   triggerSaveWorkout: number;
+  triggerSaveModal: number;
   _hasHydrated: boolean;
   setHasHydrated: (state: boolean) => void;
   completeOnboarding: () => void;
   toggleTheme: () => void;
   setModalVisible: (modal: ModalType) => void;
   requestSaveWorkout: () => void;
+  requestSaveModal: () => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -24,12 +26,14 @@ export const useAppStore = create<AppState>()(
       themeMode: 'dark',
       modalVisible: 'none',
       triggerSaveWorkout: 0,
+      triggerSaveModal: 0,
       _hasHydrated: false,
       setHasHydrated: (state) => set({ _hasHydrated: state }),
       completeOnboarding: () => set({ hasSeenOnboarding: true }),
       toggleTheme: () => set((state) => ({ themeMode: state.themeMode === 'light' ? 'dark' : 'light' })),
       setModalVisible: (modal) => set({ modalVisible: modal }),
       requestSaveWorkout: () => set((state) => ({ triggerSaveWorkout: state.triggerSaveWorkout + 1 })),
+      requestSaveModal: () => set((state) => ({ triggerSaveModal: state.triggerSaveModal + 1 })),
     }),
     {
       name: 'gains-station-storage',
@@ -37,7 +41,6 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         hasSeenOnboarding: state.hasSeenOnboarding,
         themeMode: state.themeMode,
-        modalVisible: state.modalVisible,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);

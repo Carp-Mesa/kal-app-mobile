@@ -1,13 +1,13 @@
-import { WaterModal } from '@/src/components/modals/WaterModal';
-import { SleepModal } from '@/src/components/modals/SleepModal';
 import { NutritionModal } from '@/src/components/modals/NutritionModal';
+import { SleepModal } from '@/src/components/modals/SleepModal';
+import { WaterModal } from '@/src/components/modals/WaterModal';
 import { useTodaySleep } from '@/src/hooks/useSleep';
 import api from '@/src/services/apiClient';
 import { getProfile } from '@/src/services/profileService';
-import { useQuery } from '@tanstack/react-query';
-import { router } from 'expo-router';
 import { useAppStore } from '@/src/store/useAppStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
+import { router } from 'expo-router';
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Dimensions,
@@ -16,8 +16,6 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
-import { LineChart } from 'react-native-chart-kit';
 import {
   ActivityIndicator,
   Card,
@@ -28,6 +26,7 @@ import {
   TextInput,
   useTheme,
 } from 'react-native-paper';
+import Svg, { Circle } from 'react-native-svg';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CHART_WIDTH = SCREEN_WIDTH - 72;
@@ -157,8 +156,8 @@ const CircularProgressCard = memo(function CircularProgressCard({ title, subtitl
   return (
     <View style={[{ 
       backgroundColor: theme.dark ? '#1c1c1e' : theme.colors.surface,
-      borderColor: theme.colors.primary,
-      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.15)',
+      borderWidth: 1.5,
       borderRadius: 16,
       padding: 16,
     }, style]}>
@@ -212,8 +211,8 @@ const WorkoutStatusCard = memo(function WorkoutStatusCard({ title, currentSessio
       onPress={onPress}
       style={{
         backgroundColor: theme.dark ? '#1c1c1e' : theme.colors.surface,
-        borderColor: theme.colors.primary,
-        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.15)',
+        borderWidth: 1.5,
         borderRadius: 16,
         marginBottom: 16,
         elevation: 0,
@@ -248,8 +247,8 @@ const SleepChartCard = memo(function SleepChartCard({ title, mainValue, subtitle
   return (
     <View style={{
         backgroundColor: theme.dark ? '#1c1c1e' : theme.colors.surface,
-        borderColor: theme.colors.primary,
-        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.15)',
+        borderWidth: 1.5,
         borderRadius: 16,
         padding: 16,
         marginBottom: 16,
@@ -417,6 +416,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   greetingSection: {
+    marginTop: -6,
     marginBottom: 20,
     gap: 4,
   },

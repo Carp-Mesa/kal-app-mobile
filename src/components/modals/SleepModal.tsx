@@ -1,13 +1,16 @@
 import { WheelPicker } from '@/src/components/WheelPicker';
 import { useLogSleep } from '@/src/hooks/useLogs';
+import { useShake } from '@/src/hooks/useShake';
 import { useAppStore } from '@/src/store/useAppStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { HelperText, Text } from 'react-native-paper';
+import Animated from 'react-native-reanimated';
 import { CyberModal } from './CyberModal';
 
 const CYBER_LIME = '#CCFF00';
+const ERROR_RED = '#FF4444';
 const MINUTES_IN_DAY = 1440;
 
 const HOURS = Array.from({ length: 12 }, (_, i) => String(i + 1));
@@ -24,15 +27,6 @@ const QUALITY_ICONS = [
 
 // ─── Math Helpers (Infallible) ──────────────────────────────────────────────
 
-/**
- * Converts 12-hour time to total minutes since midnight (00:00).
- *
- * Rules:
- *   - 12:00 AM → 0 minutes (midnight)
- *   - 01:00 AM → 60 minutes
- *   - 12:00 PM → 720 minutes (noon)
- *   - 01:00 PM → 780 minutes
- */
 function getMinutesFromMidnight(hour: number, minutes: number, period: 'AM' | 'PM'): number {
   let h = hour;
   if (period === 'PM' && h < 12) {
@@ -51,14 +45,6 @@ function from24h(h: number, m: number) {
   return { hourIndex: hour12 - 1, minuteIndex: m, periodIndex };
 }
 
-/**
- * Calculates sleep duration with midnight-crossing support.
- *
- * Logic:
- *   diff = endMinutes - startMinutes
- *   if diff === 0 → 0 minutes (same time)
- *   if diff < 0   → crossed midnight, add 1440
- */
 function calculateDuration(startMinutes: number, endMinutes: number): number {
   let diff = endMinutes - startMinutes;
   if (diff === 0) {
@@ -150,7 +136,9 @@ TimeBlock.displayName = 'TimeBlock';
 
 export const SleepModal: React.FC<SleepModalProps> = ({ visible, onDismiss, onSuccess }) => {
   const triggerSaveModal = useAppStore((state) => state.triggerSaveModal);
+  const setModalValidationError = useAppStore((state) => state.setModalValidationError);
   const sleepMut = useLogSleep();
+  const { shake, animatedStyle } = useShake();
 
   const [start, setStart] = useState<TimeState>(() => from24h(22, 0));
   const [end, setEnd] = useState<TimeState>(() => from24h(6, 0));
@@ -174,6 +162,27 @@ export const SleepModal: React.FC<SleepModalProps> = ({ visible, onDismiss, onSu
     return formatDuration(total);
   }, [start, end]);
 
+  const totalMinutes = useMemo(() => {
+    const startHour = parseInt(String(start.hourIndex + 1), 10);
+    const startMinute = parseInt(String(start.minuteIndex), 10);
+    const startPeriod = PERIODS[start.periodIndex] as 'AM' | 'PM';
+
+    const endHour = parseInt(String(end.hourIndex + 1), 10);
+    const endMinute = parseInt(String(end.minuteIndex), 10);
+    const endPeriod = PERIODS[end.periodIndex] as 'AM' | 'PM';
+
+    const startMinutes = getMinutesFromMidnight(startHour, startMinute, startPeriod);
+    const endMinutes = getMinutesFromMidnight(endHour, endMinute, endPeriod);
+
+    return calculateDuration(startMinutes, endMinutes);
+  }, [start, end]);
+
+  const isInvalid = totalMinutes === 0;
+
+  useEffect(() => {
+    setModalValidationError(isInvalid);
+  }, [isInvalid, setModalValidationError]);
+
   const handleSave = useCallback(() => {
     if (sleepMut.isPending) return;
 
@@ -188,14 +197,16 @@ export const SleepModal: React.FC<SleepModalProps> = ({ visible, onDismiss, onSu
     const startMinutes = getMinutesFromMidnight(startHour, startMinute, startPeriod);
     const endMinutes = getMinutesFromMidnight(endHour, endMinute, endPeriod);
 
-    const totalMinutes = calculateDuration(startMinutes, endMinutes);
+    const total = calculateDuration(startMinutes, endMinutes);
 
-    if (totalMinutes === 0) {
+    if (total === 0) {
       setError('La duración del sueño no puede ser cero.');
+      shake();
       return;
     }
-    if (totalMinutes > MINUTES_IN_DAY) {
+    if (total > MINUTES_IN_DAY) {
       setError('El sueño no puede exceder las 24 horas.');
+      shake();
       return;
     }
 
@@ -229,7 +240,7 @@ export const SleepModal: React.FC<SleepModalProps> = ({ visible, onDismiss, onSu
       },
       onError: () => setError('Error al registrar el sueño.'),
     });
-  }, [sleepMut, start, end, qualityScore, onSuccess, onDismiss]);
+  }, [sleepMut, start, end, qualityScore, onSuccess, onDismiss, shake]);
 
   // Clear error when modal opens
   useEffect(() => {
@@ -250,6 +261,8 @@ export const SleepModal: React.FC<SleepModalProps> = ({ visible, onDismiss, onSu
     setError('');
   }, []);
 
+  const durationBorderColor = isInvalid ? ERROR_RED : 'transparent';
+
   return (
     <CyberModal visible={visible} onDismiss={onDismiss} title="Registro de Sueño">
       <View style={styles.container}>
@@ -267,10 +280,14 @@ export const SleepModal: React.FC<SleepModalProps> = ({ visible, onDismiss, onSu
           onChange={setEnd}
         />
 
-        <View style={styles.durationContainer}>
-          <Text style={styles.durationLabel}>TOTAL RECUPERACIÓN</Text>
-          <Text style={styles.durationValue}>{durationDisplay}</Text>
-        </View>
+        <Animated.View style={[animatedStyle]}>
+          <View style={[styles.durationContainer, { borderColor: durationBorderColor, borderWidth: 1.5 }]}>
+            <Text style={styles.durationLabel}>TOTAL RECUPERACIÓN</Text>
+            <Text style={[styles.durationValue, isInvalid && { color: ERROR_RED }]}>
+              {durationDisplay}
+            </Text>
+          </View>
+        </Animated.View>
 
         <Text style={styles.sectionLabel}>¿Cómo te sentiste?</Text>
         <View style={styles.chipsRow}>

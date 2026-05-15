@@ -1,12 +1,15 @@
 import { useLogWater } from '@/src/hooks/useLogs';
+import { useShake } from '@/src/hooks/useShake';
 import { useAppStore } from '@/src/store/useAppStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { HelperText, Text, TextInput } from 'react-native-paper';
+import Animated from 'react-native-reanimated';
 import { CyberModal } from './CyberModal';
 
 const CYBER_LIME = '#CCFF00';
+const ERROR_RED = '#FF4444';
 
 interface WaterModalProps {
   visible: boolean;
@@ -17,20 +20,29 @@ interface WaterModalProps {
 
 export const WaterModal: React.FC<WaterModalProps> = ({ visible, onDismiss, waterGoal = 2000, onSuccess }) => {
   const triggerSaveModal = useAppStore((state) => state.triggerSaveModal);
+  const setModalValidationError = useAppStore((state) => state.setModalValidationError);
   const [amount, setAmount] = useState('');
   const [error, setError] = useState('');
   const waterMut = useLogWater();
+  const { shake, animatedStyle } = useShake();
 
   const parsedAmount = useMemo(() => {
     const val = parseInt(amount.replace(/[^0-9]/g, ''), 10);
     return isNaN(val) ? 0 : val;
   }, [amount]);
 
+  const isInvalid = parsedAmount <= 0;
+
+  useEffect(() => {
+    setModalValidationError(isInvalid);
+  }, [isInvalid, setModalValidationError]);
+
   const handleSave = () => {
     if (waterMut.isPending) return;
     const val = parsedAmount;
     if (val <= 0) {
       setError('Ingresa una cantidad válida');
+      shake();
       return;
     }
     setError('');
@@ -63,6 +75,7 @@ export const WaterModal: React.FC<WaterModalProps> = ({ visible, onDismiss, wate
   };
 
   const displayAmount = parsedAmount || 0;
+  const outlineColor = error ? ERROR_RED : 'rgba(255,255,255,0.2)';
 
   return (
     <CyberModal visible={visible} onDismiss={onDismiss} title="Registro de agua">
@@ -89,20 +102,22 @@ export const WaterModal: React.FC<WaterModalProps> = ({ visible, onDismiss, wate
         ))}
       </View>
 
-      <TextInput
-        mode="outlined"
-        label="Cantidad personalizada (ml)"
-        value={amount}
-        onChangeText={(text) => { setAmount(text.replace(/[^0-9]/g, '')); setError(''); }}
-        placeholder="Ej: 350"
-        keyboardType="numeric"
-        style={styles.input}
-        outlineColor="rgba(255,255,255,0.2)"
-        activeOutlineColor={CYBER_LIME}
-        textColor="#FFFFFF"
-        theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
-      />
-      {error ? <HelperText type="error" visible style={{ color: '#FF4444' }}>{error}</HelperText> : null}
+      <Animated.View style={animatedStyle}>
+        <TextInput
+          mode="outlined"
+          label="Cantidad personalizada (ml)"
+          value={amount}
+          onChangeText={(text) => { setAmount(text.replace(/[^0-9]/g, '')); setError(''); }}
+          placeholder="Ej: 350"
+          keyboardType="numeric"
+          style={styles.input}
+          outlineColor={outlineColor}
+          activeOutlineColor={error ? ERROR_RED : CYBER_LIME}
+          textColor="#FFFFFF"
+          theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
+        />
+      </Animated.View>
+      {error ? <HelperText type="error" visible style={{ color: ERROR_RED }}>{error}</HelperText> : null}
     </CyberModal>
   );
 };

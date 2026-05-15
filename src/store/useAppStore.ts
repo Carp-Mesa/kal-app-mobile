@@ -10,6 +10,7 @@ interface AppState {
   modalVisible: ModalType;
   triggerSaveWorkout: number;
   triggerSaveModal: number;
+  modalValidationError: boolean;
   _hasHydrated: boolean;
   setHasHydrated: (state: boolean) => void;
   completeOnboarding: () => void;
@@ -17,6 +18,7 @@ interface AppState {
   setModalVisible: (modal: ModalType) => void;
   requestSaveWorkout: () => void;
   requestSaveModal: () => void;
+  setModalValidationError: (error: boolean) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -27,6 +29,7 @@ export const useAppStore = create<AppState>()(
       modalVisible: 'none',
       triggerSaveWorkout: 0,
       triggerSaveModal: 0,
+      modalValidationError: false,
       _hasHydrated: false,
       setHasHydrated: (state) => set({ _hasHydrated: state }),
       completeOnboarding: () => set({ hasSeenOnboarding: true }),
@@ -34,6 +37,7 @@ export const useAppStore = create<AppState>()(
       setModalVisible: (modal) => set({ modalVisible: modal }),
       requestSaveWorkout: () => set((state) => ({ triggerSaveWorkout: state.triggerSaveWorkout + 1 })),
       requestSaveModal: () => set((state) => ({ triggerSaveModal: state.triggerSaveModal + 1 })),
+      setModalValidationError: (error) => set({ modalValidationError: error }),
     }),
     {
       name: 'gains-station-storage',

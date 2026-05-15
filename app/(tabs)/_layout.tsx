@@ -90,7 +90,7 @@ const AbsoluteMainButton = ({ onPress, isMenuVisible, isWorkoutNew, isModalVisib
   const theme = useTheme();
   const requestSaveWorkout = useAppStore(state => state.requestSaveWorkout);
   const requestSaveModal = useAppStore(state => state.requestSaveModal);
-  const setModalVisible = useAppStore(state => state.setModalVisible);
+  const modalValidationError = useAppStore(state => state.modalValidationError);
   const rotation = useSharedValue(0);
 
   useEffect(() => {
@@ -122,7 +122,7 @@ const AbsoluteMainButton = ({ onPress, isMenuVisible, isWorkoutNew, isModalVisib
             <MaterialCommunityIcons name="content-save-outline" size={28} color="#000000" />
           </View>
         ) : isModalVisible ? (
-          <View style={[styles.mainButton, styles.mainButtonSave, styles.mainButtonGlow]}>
+          <View style={[styles.mainButton, styles.mainButtonSave, styles.mainButtonGlow, modalValidationError && { opacity: 0.35 }]}>
             <MaterialCommunityIcons name="check" size={32} color="#000000" />
           </View>
         ) : (

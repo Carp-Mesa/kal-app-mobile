@@ -1,14 +1,17 @@
 import { useLogNutrition } from '@/src/hooks/useLogs';
+import { useShake } from '@/src/hooks/useShake';
 import { useAppStore } from '@/src/store/useAppStore';
 import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { HelperText, Switch, Text, TextInput } from 'react-native-paper';
+import Animated from 'react-native-reanimated';
 import { CyberModal } from './CyberModal';
 
 const CYBER_LIME = '#CCFF00';
-const COLOR_PROTEIN = '#2196F3'; // Azul
-const COLOR_CARBS = '#FF9800';   // Naranja
-const COLOR_FATS = '#E91E63';    // Magenta
+const ERROR_RED = '#FF4444';
+const COLOR_PROTEIN = '#2196F3';
+const COLOR_CARBS = '#FF9800';
+const COLOR_FATS = '#E91E63';
 
 interface NutritionModalProps {
   visible: boolean;
@@ -22,6 +25,7 @@ function round(val: number): number {
 
 export const NutritionModal: React.FC<NutritionModalProps> = ({ visible, onDismiss, onSuccess }) => {
   const triggerSaveModal = useAppStore((state) => state.triggerSaveModal);
+  const setModalValidationError = useAppStore((state) => state.setModalValidationError);
   const [name, setName] = useState('');
   const [calories, setCalories] = useState('');
   const [autoCalc, setAutoCalc] = useState(true);
@@ -29,7 +33,9 @@ export const NutritionModal: React.FC<NutritionModalProps> = ({ visible, onDismi
   const [carbs, setCarbs] = useState('');
   const [fats, setFats] = useState('');
   const [error, setError] = useState('');
+  const [shakingField, setShakingField] = useState<'name' | 'calories' | 'macros' | null>(null);
   const nutritionMut = useLogNutrition();
+  const { shake, animatedStyle } = useShake();
 
   const calNum = useMemo(() => {
     const c = parseInt(calories.replace(/[^0-9]/g, ''), 10);
@@ -38,7 +44,6 @@ export const NutritionModal: React.FC<NutritionModalProps> = ({ visible, onDismi
 
   const computedMacros = useMemo(() => {
     if (calNum <= 0) return { protein: 0, carbs: 0, fats: 0 };
-    // Split: 30% protein (4 kcal/g), 40% carbs (4 kcal/g), 30% fats (9 kcal/g)
     const p = round((calNum * 0.30) / 4);
     const c = round((calNum * 0.40) / 4);
     const f = round((calNum * 0.30) / 9);
@@ -67,23 +72,41 @@ export const NutritionModal: React.FC<NutritionModalProps> = ({ visible, onDismi
     };
   }, [calNum, finalMacros]);
 
+  const isInvalid = useMemo(() => {
+    if (calNum <= 0) return true;
+    if (!name.trim()) return true;
+    if (!autoCalc && finalMacros.protein <= 0 && finalMacros.carbs <= 0 && finalMacros.fats <= 0) return true;
+    return false;
+  }, [calNum, name, autoCalc, finalMacros]);
+
+  useEffect(() => {
+    setModalValidationError(isInvalid);
+  }, [isInvalid, setModalValidationError]);
+
   const handleSave = () => {
     if (nutritionMut.isPending) return;
     const cal = calNum;
     if (cal <= 0) {
       setError('Ingresa las calorías');
+      setShakingField('calories');
+      shake();
       return;
     }
     if (!name.trim()) {
       setError('Ingresa el nombre de la comida');
+      setShakingField('name');
+      shake();
       return;
     }
     const macros = finalMacros;
     if (!autoCalc && (macros.protein <= 0 && macros.carbs <= 0 && macros.fats <= 0)) {
       setError('Ingresa al menos un macro');
+      setShakingField('macros');
+      shake();
       return;
     }
     setError('');
+    setShakingField(null);
     nutritionMut.mutate({
       meal_name: name.trim(),
       calories: cal,
@@ -98,6 +121,7 @@ export const NutritionModal: React.FC<NutritionModalProps> = ({ visible, onDismi
         setProtein('');
         setCarbs('');
         setFats('');
+        setShakingField(null);
         onSuccess?.();
         onDismiss();
       },
@@ -106,7 +130,10 @@ export const NutritionModal: React.FC<NutritionModalProps> = ({ visible, onDismi
   };
 
   useEffect(() => {
-    if (visible) setError('');
+    if (visible) {
+      setError('');
+      setShakingField(null);
+    }
   }, [visible]);
 
   useEffect(() => {
@@ -115,6 +142,16 @@ export const NutritionModal: React.FC<NutritionModalProps> = ({ visible, onDismi
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [triggerSaveModal]);
+
+  const getOutlineColor = (field: 'name' | 'calories' | 'macros') => {
+    if (error && shakingField === field) return ERROR_RED;
+    return 'rgba(255,255,255,0.2)';
+  };
+
+  const getActiveOutlineColor = (field: 'name' | 'calories' | 'macros', defaultColor: string) => {
+    if (error && shakingField === field) return ERROR_RED;
+    return defaultColor;
+  };
 
   const MacroBar = ({ label, value, color, pct }: { label: string; value: number; color: string; pct: number }) => (
     <View style={styles.macroBarContainer}>
@@ -130,32 +167,37 @@ export const NutritionModal: React.FC<NutritionModalProps> = ({ visible, onDismi
 
   return (
     <CyberModal visible={visible} onDismiss={onDismiss} title="Registro de nutrición">
-      <TextInput
-        mode="outlined"
-        label="Nombre de la comida"
-        value={name}
-        onChangeText={setName}
-        placeholder="Ej: Almuerzo"
-        style={styles.input}
-        outlineColor="rgba(255,255,255,0.2)"
-        activeOutlineColor={CYBER_LIME}
-        textColor="#FFFFFF"
-        theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
-      />
-      <TextInput
-        mode="outlined"
-        label="Calorías"
-        value={calories}
-        onChangeText={(t) => { setCalories(t.replace(/[^0-9]/g, '')); setError(''); }}
-        placeholder="Ej: 500"
-        keyboardType="numeric"
-        style={styles.input}
-        outlineColor="rgba(255,255,255,0.2)"
-        activeOutlineColor={CYBER_LIME}
-        textColor="#FFFFFF"
-        theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
-        left={<TextInput.Icon icon="fire" color="rgba(255,255,255,0.5)" />}
-      />
+      <Animated.View style={shakingField === 'name' ? animatedStyle : undefined}>
+        <TextInput
+          mode="outlined"
+          label="Nombre de la comida"
+          value={name}
+          onChangeText={(t) => { setName(t); setError(''); }}
+          placeholder="Ej: Almuerzo"
+          style={styles.input}
+          outlineColor={getOutlineColor('name')}
+          activeOutlineColor={getActiveOutlineColor('name', CYBER_LIME)}
+          textColor="#FFFFFF"
+          theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
+        />
+      </Animated.View>
+
+      <Animated.View style={shakingField === 'calories' ? animatedStyle : undefined}>
+        <TextInput
+          mode="outlined"
+          label="Calorías"
+          value={calories}
+          onChangeText={(t) => { setCalories(t.replace(/[^0-9]/g, '')); setError(''); }}
+          placeholder="Ej: 500"
+          keyboardType="numeric"
+          style={styles.input}
+          outlineColor={getOutlineColor('calories')}
+          activeOutlineColor={getActiveOutlineColor('calories', CYBER_LIME)}
+          textColor="#FFFFFF"
+          theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
+          left={<TextInput.Icon icon="fire" color="rgba(255,255,255,0.5)" />}
+        />
+      </Animated.View>
 
       <View style={styles.autoCalcRow}>
         <Text style={styles.autoCalcLabel}>Autocalcular macros</Text>
@@ -175,47 +217,49 @@ export const NutritionModal: React.FC<NutritionModalProps> = ({ visible, onDismi
       )}
 
       {!autoCalc && (
-        <View style={styles.manualMacrosRow}>
-          <TextInput
-            mode="outlined"
-            label="Prot (g)"
-            value={protein}
-            onChangeText={(t) => setProtein(t.replace(/[^0-9]/g, ''))}
-            keyboardType="numeric"
-            style={[styles.smallInput, { marginRight: 6 }]}
-            outlineColor="rgba(255,255,255,0.2)"
-            activeOutlineColor={COLOR_PROTEIN}
-            textColor="#FFFFFF"
-            theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
-          />
-          <TextInput
-            mode="outlined"
-            label="Carb (g)"
-            value={carbs}
-            onChangeText={(t) => setCarbs(t.replace(/[^0-9]/g, ''))}
-            keyboardType="numeric"
-            style={[styles.smallInput, { marginHorizontal: 6 }]}
-            outlineColor="rgba(255,255,255,0.2)"
-            activeOutlineColor={COLOR_CARBS}
-            textColor="#FFFFFF"
-            theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
-          />
-          <TextInput
-            mode="outlined"
-            label="Gras (g)"
-            value={fats}
-            onChangeText={(t) => setFats(t.replace(/[^0-9]/g, ''))}
-            keyboardType="numeric"
-            style={[styles.smallInput, { marginLeft: 6 }]}
-            outlineColor="rgba(255,255,255,0.2)"
-            activeOutlineColor={COLOR_FATS}
-            textColor="#FFFFFF"
-            theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
-          />
-        </View>
+        <Animated.View style={shakingField === 'macros' ? animatedStyle : undefined}>
+          <View style={styles.manualMacrosRow}>
+            <TextInput
+              mode="outlined"
+              label="Prot (g)"
+              value={protein}
+              onChangeText={(t) => setProtein(t.replace(/[^0-9]/g, ''))}
+              keyboardType="numeric"
+              style={[styles.smallInput, { marginRight: 6 }]}
+              outlineColor="rgba(255,255,255,0.2)"
+              activeOutlineColor={COLOR_PROTEIN}
+              textColor="#FFFFFF"
+              theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
+            />
+            <TextInput
+              mode="outlined"
+              label="Carb (g)"
+              value={carbs}
+              onChangeText={(t) => setCarbs(t.replace(/[^0-9]/g, ''))}
+              keyboardType="numeric"
+              style={[styles.smallInput, { marginHorizontal: 6 }]}
+              outlineColor="rgba(255,255,255,0.2)"
+              activeOutlineColor={COLOR_CARBS}
+              textColor="#FFFFFF"
+              theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
+            />
+            <TextInput
+              mode="outlined"
+              label="Gras (g)"
+              value={fats}
+              onChangeText={(t) => setFats(t.replace(/[^0-9]/g, ''))}
+              keyboardType="numeric"
+              style={[styles.smallInput, { marginLeft: 6 }]}
+              outlineColor="rgba(255,255,255,0.2)"
+              activeOutlineColor={COLOR_FATS}
+              textColor="#FFFFFF"
+              theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
+            />
+          </View>
+        </Animated.View>
       )}
 
-      {error ? <HelperText type="error" visible style={{ color: '#FF4444', marginTop: 8 }}>{error}</HelperText> : null}
+      {error ? <HelperText type="error" visible style={{ color: ERROR_RED, marginTop: 8 }}>{error}</HelperText> : null}
     </CyberModal>
   );
 };

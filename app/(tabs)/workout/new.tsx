@@ -1,4 +1,5 @@
 import { useExerciseSuggestions } from '@/src/hooks/useExerciseSuggestions';
+import { useShake } from '@/src/hooks/useShake';
 import { createWorkout, ExercisePayload, SetEntry } from '@/src/services/workoutService';
 import { useAppStore } from '@/src/store/useAppStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -7,7 +8,6 @@ import { router } from 'expo-router';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -16,6 +16,7 @@ import {
   View,
 } from 'react-native';
 import { Snackbar, Text, TextInput } from 'react-native-paper';
+import Animated from 'react-native-reanimated';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Design Tokens
@@ -28,6 +29,7 @@ const BORDER = 'rgba(255,255,255,0.15)';
 const SILVER = '#888888';
 const WHITE = '#FFFFFF';
 const MUTED = '#444444';
+const ERROR_RED = '#FF4444';
 
 const CARD_STYLE = {
   backgroundColor: CARD_BG,
@@ -133,6 +135,8 @@ interface SetRowProps {
   canRemove: boolean;
   isLast: boolean;
   exerciseId: string;
+  hasRepsError?: boolean;
+  hasWeightError?: boolean;
 }
 
 const SetRow = memo(function SetRow({
@@ -146,6 +150,8 @@ const SetRow = memo(function SetRow({
   canRemove,
   isLast,
   exerciseId,
+  hasRepsError,
+  hasWeightError,
 }: SetRowProps) {
   const [localReps, setLocalReps] = useState(reps);
   const [localWeight, setLocalWeight] = useState(weightKg);
@@ -154,6 +160,9 @@ const SetRow = memo(function SetRow({
 
   useEffect(() => { if (!repsFocused.current) setLocalReps(reps); }, [reps]);
   useEffect(() => { if (!weightFocused.current) setLocalWeight(weightKg); }, [weightKg]);
+
+  const repsOutlineColor = hasRepsError ? ERROR_RED : BORDER;
+  const weightOutlineColor = hasWeightError ? ERROR_RED : BORDER;
 
   return (
     <View style={s.setTableRow}>
@@ -177,8 +186,8 @@ const SetRow = memo(function SetRow({
         keyboardType="numeric"
         returnKeyType="next"
         style={s.setField}
-        theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
-        outlineStyle={OUTLINE_STYLE}
+        theme={{ colors: { primary: hasRepsError ? ERROR_RED : CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
+        outlineStyle={{ ...OUTLINE_STYLE, borderColor: repsOutlineColor }}
         textColor={WHITE}
       />
 
@@ -199,8 +208,8 @@ const SetRow = memo(function SetRow({
         keyboardType="decimal-pad"
         returnKeyType="done"
         style={s.setField}
-        theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
-        outlineStyle={OUTLINE_STYLE}
+        theme={{ colors: { primary: hasWeightError ? ERROR_RED : CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
+        outlineStyle={{ ...OUTLINE_STYLE, borderColor: weightOutlineColor }}
         textColor={WHITE}
       />
 
@@ -267,6 +276,8 @@ interface ExerciseCardProps {
   onRemoveExercise: (id: string) => void;
   canRemove: boolean;
   suggestions: string[];
+  hasNameError?: boolean;
+  invalidSetIds?: { reps?: string[]; weight?: string[] };
 }
 
 const ExerciseCard = memo(function ExerciseCard({
@@ -280,6 +291,8 @@ const ExerciseCard = memo(function ExerciseCard({
   onRemoveExercise,
   canRemove,
   suggestions,
+  hasNameError,
+  invalidSetIds,
 }: ExerciseCardProps) {
   const [nameFocused, setNameFocused] = useState(false);
   const [localName, setLocalName] = useState(exercise.name);
@@ -303,6 +316,8 @@ const ExerciseCard = memo(function ExerciseCard({
     const w = parseFloat(s.weight_kg) || 0;
     return sum + r * w;
   }, 0);
+
+  const nameOutlineColor = hasNameError ? ERROR_RED : BORDER;
 
   return (
     <View style={s.exerciseCard}>
@@ -329,8 +344,8 @@ const ExerciseCard = memo(function ExerciseCard({
             autoCapitalize="words"
             returnKeyType="done"
             style={{ backgroundColor: 'transparent', marginBottom: showSuggestions ? 4 : 12, marginTop: -5 }}
-            theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
-            outlineStyle={OUTLINE_STYLE}
+            theme={{ colors: { primary: hasNameError ? ERROR_RED : CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
+            outlineStyle={{ ...OUTLINE_STYLE, borderColor: nameOutlineColor }}
             textColor={WHITE}
           />
         </View>
@@ -384,6 +399,8 @@ const ExerciseCard = memo(function ExerciseCard({
             canRemove={exercise.sets.length > 1}
             isLast={sIdx === exercise.sets.length - 1}
             exerciseId={exerciseId}
+            hasRepsError={invalidSetIds?.reps?.includes(setItem.id)}
+            hasWeightError={invalidSetIds?.weight?.includes(setItem.id)}
           />
         ))}
       </View>
@@ -412,9 +429,11 @@ export default function NewWorkoutScreen() {
   const queryClient = useQueryClient();
   const scrollRef = useRef<ScrollView>(null);
   const { data: rawSuggestions = [] } = useExerciseSuggestions();
+  const { shake, animatedStyle } = useShake();
 
   // ── Workout store integration ─────────────────────────────────────────────
   const triggerSaveWorkout = useAppStore(state => state.triggerSaveWorkout);
+  const setModalValidationError = useAppStore(state => state.setModalValidationError);
   const triggerRef = useRef(triggerSaveWorkout);
   const handleSaveRef = useRef<() => Promise<void>>(async () => {});
 
@@ -427,6 +446,56 @@ export default function NewWorkoutScreen() {
   const [form, setForm] = useState<WorkoutForm>(initialForm);
   const [isSaving, setIsSaving] = useState(false);
   const [snackbar, setSnackbar] = useState({ visible: false, message: '' });
+  const [validationErrors, setValidationErrors] = useState<{
+    exerciseNameIds: string[];
+    setRepsIds: string[];
+    setWeightIds: string[];
+  }>({ exerciseNameIds: [], setRepsIds: [], setWeightIds: [] });
+
+  // ── Compute validation state continuously ─────────────────────────────────
+  const { isFormValid, firstInvalidExerciseId } = useMemo(() => {
+    const exerciseNameIds: string[] = [];
+    const setRepsIds: string[] = [];
+    const setWeightIds: string[] = [];
+
+    if (!form.name.trim()) return { isFormValid: false, firstInvalidExerciseId: null };
+    if (form.exercises.length === 0) return { isFormValid: false, firstInvalidExerciseId: null };
+
+    let firstInvalidId: string | null = null;
+
+    for (const ex of form.exercises) {
+      if (!ex.name.trim()) {
+        exerciseNameIds.push(ex.id);
+        if (!firstInvalidId) firstInvalidId = ex.id;
+      }
+      if (ex.sets.length === 0) {
+        if (!firstInvalidId) firstInvalidId = ex.id;
+      }
+      for (const setItem of ex.sets) {
+        const repsNum = Number(setItem.reps) || 0;
+        const weightNum = parseFloat(setItem.weight_kg) || 0;
+        if (repsNum <= 0) {
+          setRepsIds.push(setItem.id);
+          if (!firstInvalidId) firstInvalidId = ex.id;
+        }
+        if (weightNum < 0) {
+          setWeightIds.push(setItem.id);
+          if (!firstInvalidId) firstInvalidId = ex.id;
+        }
+      }
+    }
+
+    const valid = exerciseNameIds.length === 0 && setRepsIds.length === 0 && setWeightIds.length === 0;
+    return { isFormValid: valid, firstInvalidExerciseId: firstInvalidId };
+  }, [form]);
+
+  useEffect(() => {
+    setModalValidationError(!isFormValid);
+  }, [isFormValid, setModalValidationError]);
+
+  useEffect(() => {
+    setValidationErrors({ exerciseNameIds: [], setRepsIds: [], setWeightIds: [] });
+  }, [form]);
 
   // ── Listen for save trigger from tab bar ──────────────────────────────────
   useEffect(() => {
@@ -495,27 +564,44 @@ export default function NewWorkoutScreen() {
     setForm((prev) => ({ ...prev, exercises: prev.exercises.filter((ex) => ex.id !== id) }));
   }, []);
 
-  const validate = (): string | null => {
-    if (!form.name.trim()) return 'El nombre del entrenamiento es obligatorio.';
-    if (form.exercises.length === 0) return 'Agrega al menos un ejercicio.';
-    for (let i = 0; i < form.exercises.length; i++) {
-      const ex = form.exercises[i];
-      if (!ex.name.trim()) return `Ejercicio ${i + 1}: necesita un nombre.`;
-      if (ex.sets.length === 0) return `Ejercicio ${i + 1}: necesita al menos una serie.`;
-      for (let j = 0; j < ex.sets.length; j++) {
-        if (!ex.sets[j].reps) return `Serie ${j + 1} de ${ex.name}: repeticiones requeridas.`;
+  const computeValidationErrors = () => {
+    const exerciseNameIds: string[] = [];
+    const setRepsIds: string[] = [];
+    const setWeightIds: string[] = [];
+
+    for (const ex of form.exercises) {
+      if (!ex.name.trim()) exerciseNameIds.push(ex.id);
+      for (const setItem of ex.sets) {
+        const repsNum = Number(setItem.reps) || 0;
+        const weightNum = parseFloat(setItem.weight_kg) || 0;
+        if (repsNum <= 0) setRepsIds.push(setItem.id);
+        if (weightNum < 0) setWeightIds.push(setItem.id);
       }
     }
-    return null;
+    return { exerciseNameIds, setRepsIds, setWeightIds };
   };
 
   const handleSave = async () => {
-    const error = validate();
-    if (error) {
-      setSnackbar({ visible: true, message: error });
+    const errs = computeValidationErrors();
+    const hasErrors = errs.exerciseNameIds.length > 0 || errs.setRepsIds.length > 0 || errs.setWeightIds.length > 0;
+
+    if (hasErrors) {
+      setValidationErrors(errs);
+      shake();
+      // Scroll to first invalid exercise
+      if (firstInvalidExerciseId) {
+        // Slight delay to allow re-render with red borders
+        setTimeout(() => {
+          const idx = form.exercises.findIndex((ex) => ex.id === firstInvalidExerciseId);
+          if (idx >= 0 && scrollRef.current) {
+            scrollRef.current.scrollTo({ y: idx * 400, animated: true });
+          }
+        }, 100);
+      }
       return;
     }
 
+    setValidationErrors({ exerciseNameIds: [], setRepsIds: [], setWeightIds: [] });
     setIsSaving(true);
     try {
       const exercisesPayload: ExercisePayload[] = form.exercises.map((ex) => ({
@@ -538,9 +624,7 @@ export default function NewWorkoutScreen() {
       await queryClient.invalidateQueries({ queryKey: ['progressToday'] });
       await queryClient.invalidateQueries({ queryKey: ['workoutHistory'] });
 
-      Alert.alert('¡Listo!', 'Entrenamiento guardado correctamente.', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      router.back();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Ocurrió un error al guardar.';
       setSnackbar({ visible: true, message });
@@ -625,21 +709,28 @@ export default function NewWorkoutScreen() {
             </Text>
           </View>
 
-          {form.exercises.map((ex, index) => (
-            <ExerciseCard
-              key={ex.id}
-              exercise={ex}
-              exerciseId={ex.id}
-              index={index}
-              onUpdateExercise={updateExerciseField}
-              onUpdateSet={updateSetField}
-              onAddSet={addSet}
-              onRemoveSet={removeSet}
-              onRemoveExercise={removeExercise}
-              canRemove={form.exercises.length > 1}
-              suggestions={suggestions}
-            />
-          ))}
+          <Animated.View style={animatedStyle}>
+            {form.exercises.map((ex, index) => (
+              <ExerciseCard
+                key={ex.id}
+                exercise={ex}
+                exerciseId={ex.id}
+                index={index}
+                onUpdateExercise={updateExerciseField}
+                onUpdateSet={updateSetField}
+                onAddSet={addSet}
+                onRemoveSet={removeSet}
+                onRemoveExercise={removeExercise}
+                canRemove={form.exercises.length > 1}
+                suggestions={suggestions}
+                hasNameError={validationErrors.exerciseNameIds.includes(ex.id)}
+                invalidSetIds={{
+                  reps: validationErrors.setRepsIds,
+                  weight: validationErrors.setWeightIds,
+                }}
+              />
+            ))}
+          </Animated.View>
 
           {/* Añadir Ejercicio */}
           <Pressable onPress={addExercise} style={s.addExerciseBtn}>

@@ -79,8 +79,8 @@ function WorkoutCard({ item }: WorkoutCardProps) {
         styles.card, 
         { 
           backgroundColor: theme.dark ? '#1c1c1e' : theme.colors.surface,
-          borderColor: theme.colors.primary,
-          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.15)',
+          borderWidth: 1.5,
           borderRadius: 16,
         }
       ]} 
@@ -259,7 +259,7 @@ export default function WorkoutIndexScreen() {
           </View>
         }
         ListFooterComponent={
-          hasNextPage ? (
+          hasNextPage && filter === 'Ver todo' ? (
             <Button mode="outlined" onPress={() => fetchNextPage()} loading={isFetchingNextPage} style={styles.loadMoreBtn} icon="chevron-down">
               Cargar más
             </Button>

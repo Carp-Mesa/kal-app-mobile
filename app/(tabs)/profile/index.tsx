@@ -70,6 +70,10 @@ export default function ProfileScreen() {
   const [activeTab, setActiveTab] = useState<TabType>('Info Personal');
   const [snackbar, setSnackbar] = useState({ visible: false, message: '' });
 
+  // ─── Edit modes ────────────────────────────────────────────────────────────
+  const [editingFicha, setEditingFicha] = useState(false);
+  const [editingMetas, setEditingMetas] = useState(false);
+
   // ─── Fields ────────────────────────────────────────────────────────────────
   const [fullName, setFullName] = useState('');
   const [age, setAge] = useState('');
@@ -95,6 +99,8 @@ export default function ProfileScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profile'] });
       setSnackbar({ visible: true, message: 'Perfil actualizado correctamente' });
+      setEditingFicha(false);
+      setEditingMetas(false);
     },
     onError: () => {
       setSnackbar({ visible: true, message: 'Error al actualizar el perfil' });
@@ -195,17 +201,30 @@ export default function ProfileScreen() {
               Información Básica
             </Text>
 
-            <TextInput mode="outlined" label="Nombre Completo" value={fullName} onChangeText={setFullName}
-              left={<TextInput.Icon icon="account" color={theme.colors.onSurfaceVariant} />}
-              style={{ backgroundColor: 'transparent', marginBottom: 16 }}
+            <TextInput
+              mode="outlined"
+              label="Nombre Completo"
+              value={fullName}
+              onChangeText={setFullName}
+              editable={editingFicha}
+              left={<TextInput.Icon icon="account" color={editingFicha ? theme.colors.onSurfaceVariant : 'rgba(255,255,255,0.2)'} />}
+              style={{ backgroundColor: editingFicha ? 'transparent' : 'rgba(255,255,255,0.02)', marginBottom: 16 }}
               outlineStyle={{ borderRadius: 12, borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1.5 }}
-              textColor={theme.colors.onSurface} theme={{ colors: { primary: theme.colors.primary } }}
+              textColor={editingFicha ? theme.colors.onSurface : theme.colors.onSurfaceVariant}
+              theme={{ colors: { primary: theme.colors.primary } }}
             />
-            <TextInput mode="outlined" label="Edad" value={age} onChangeText={setAge} keyboardType="numeric"
-              left={<TextInput.Icon icon="calendar-account" color={theme.colors.onSurfaceVariant} />}
-              style={{ backgroundColor: 'transparent', marginBottom: 24 }}
+            <TextInput
+              mode="outlined"
+              label="Edad"
+              value={age}
+              onChangeText={setAge}
+              keyboardType="numeric"
+              editable={editingFicha}
+              left={<TextInput.Icon icon="calendar-account" color={editingFicha ? theme.colors.onSurfaceVariant : 'rgba(255,255,255,0.2)'} />}
+              style={{ backgroundColor: editingFicha ? 'transparent' : 'rgba(255,255,255,0.02)', marginBottom: 24 }}
               outlineStyle={{ borderRadius: 12, borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1.5 }}
-              textColor={theme.colors.onSurface} theme={{ colors: { primary: theme.colors.primary } }}
+              textColor={editingFicha ? theme.colors.onSurface : theme.colors.onSurfaceVariant}
+              theme={{ colors: { primary: theme.colors.primary } }}
             />
 
             <Text style={{ fontSize: 18, fontWeight: '800', color: theme.colors.onSurface, marginBottom: 16 }}>
@@ -213,28 +232,56 @@ export default function ProfileScreen() {
             </Text>
 
             <View style={{ gap: 16, marginBottom: 24 }}>
-              <TextInput mode="outlined" label="Altura (cm)" value={height} onChangeText={setHeight} keyboardType="numeric"
-                left={<TextInput.Icon icon="human-male-height" color={theme.colors.onSurfaceVariant} />}
-                style={{ backgroundColor: 'transparent' }}
+              <TextInput
+                mode="outlined"
+                label="Altura (cm)"
+                value={height}
+                onChangeText={setHeight}
+                keyboardType="numeric"
+                editable={editingFicha}
+                left={<TextInput.Icon icon="human-male-height" color={editingFicha ? theme.colors.onSurfaceVariant : 'rgba(255,255,255,0.2)'} />}
+                style={{ backgroundColor: editingFicha ? 'transparent' : 'rgba(255,255,255,0.02)' }}
                 outlineStyle={{ borderRadius: 12, borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1.5 }}
-                textColor={theme.colors.onSurface} theme={{ colors: { primary: theme.colors.primary } }}
+                textColor={editingFicha ? theme.colors.onSurface : theme.colors.onSurfaceVariant}
+                theme={{ colors: { primary: theme.colors.primary } }}
               />
-              <TextInput mode="outlined" label="Peso actual (kg)" value={currentWeight} onChangeText={setCurrentWeight} keyboardType="numeric"
-                left={<TextInput.Icon icon="scale-bathroom" color={theme.colors.onSurfaceVariant} />}
-                style={{ backgroundColor: 'transparent' }}
+              <TextInput
+                mode="outlined"
+                label="Peso actual (kg)"
+                value={currentWeight}
+                onChangeText={setCurrentWeight}
+                keyboardType="numeric"
+                editable={editingFicha}
+                left={<TextInput.Icon icon="scale-bathroom" color={editingFicha ? theme.colors.onSurfaceVariant : 'rgba(255,255,255,0.2)'} />}
+                style={{ backgroundColor: editingFicha ? 'transparent' : 'rgba(255,255,255,0.02)' }}
                 outlineStyle={{ borderRadius: 12, borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1.5 }}
-                textColor={theme.colors.onSurface} theme={{ colors: { primary: theme.colors.primary } }}
+                textColor={editingFicha ? theme.colors.onSurface : theme.colors.onSurfaceVariant}
+                theme={{ colors: { primary: theme.colors.primary } }}
               />
-              <TextInput mode="outlined" label="Porcentaje de grasa (%)" value={bodyFat} onChangeText={setBodyFat} keyboardType="numeric"
-                left={<TextInput.Icon icon="percent" color={theme.colors.onSurfaceVariant} />}
-                style={{ backgroundColor: 'transparent' }}
+              <TextInput
+                mode="outlined"
+                label="Porcentaje de grasa (%)"
+                value={bodyFat}
+                onChangeText={setBodyFat}
+                keyboardType="numeric"
+                editable={editingFicha}
+                left={<TextInput.Icon icon="percent" color={editingFicha ? theme.colors.onSurfaceVariant : 'rgba(255,255,255,0.2)'} />}
+                style={{ backgroundColor: editingFicha ? 'transparent' : 'rgba(255,255,255,0.02)' }}
                 outlineStyle={{ borderRadius: 12, borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1.5 }}
-                textColor={theme.colors.onSurface} theme={{ colors: { primary: theme.colors.primary } }}
+                textColor={editingFicha ? theme.colors.onSurface : theme.colors.onSurfaceVariant}
+                theme={{ colors: { primary: theme.colors.primary } }}
               />
             </View>
 
-            <Button mode="contained" onPress={handleSave} style={{ borderRadius: 12, paddingVertical: 4 }}>
-              <Text style={{ fontWeight: '700', color: theme.dark ? '#000' : '#fff' }}>Guardar Ficha</Text>
+            <Button
+              mode="contained"
+              onPress={editingFicha ? handleSave : () => setEditingFicha(true)}
+              loading={updateMutation.isPending}
+              style={{ borderRadius: 12, paddingVertical: 4 }}
+            >
+              <Text style={{ fontWeight: '700', color: theme.dark ? '#000' : '#fff' }}>
+                {editingFicha ? 'Guardar cambios' : 'Editar ficha'}
+              </Text>
             </Button>
           </View>
         )}
@@ -252,10 +299,12 @@ export default function ProfileScreen() {
                 value={targetWeight}
                 onChangeText={setTargetWeight}
                 keyboardType="numeric"
-                left={<TextInput.Icon icon="bullseye-arrow" color={theme.colors.onSurfaceVariant} />}
-                style={{ backgroundColor: 'transparent' }}
+                editable={editingMetas}
+                left={<TextInput.Icon icon="bullseye-arrow" color={editingMetas ? theme.colors.onSurfaceVariant : 'rgba(255,255,255,0.2)'} />}
+                style={{ backgroundColor: editingMetas ? 'transparent' : 'rgba(255,255,255,0.02)' }}
                 outlineStyle={{ borderRadius: 12, borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1.5 }}
-                textColor={theme.colors.onSurface} theme={{ colors: { primary: theme.colors.primary } }}
+                textColor={editingMetas ? theme.colors.onSurface : theme.colors.onSurfaceVariant}
+                theme={{ colors: { primary: theme.colors.primary } }}
               />
               <TextInput
                 mode="outlined"
@@ -263,10 +312,12 @@ export default function ProfileScreen() {
                 value={waterGoal}
                 onChangeText={setWaterGoal}
                 keyboardType="numeric"
-                left={<TextInput.Icon icon="water-outline" color={theme.colors.onSurfaceVariant} />}
-                style={{ backgroundColor: 'transparent' }}
+                editable={editingMetas}
+                left={<TextInput.Icon icon="water-outline" color={editingMetas ? theme.colors.onSurfaceVariant : 'rgba(255,255,255,0.2)'} />}
+                style={{ backgroundColor: editingMetas ? 'transparent' : 'rgba(255,255,255,0.02)' }}
                 outlineStyle={{ borderRadius: 12, borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1.5 }}
-                textColor={theme.colors.onSurface} theme={{ colors: { primary: theme.colors.primary } }}
+                textColor={editingMetas ? theme.colors.onSurface : theme.colors.onSurfaceVariant}
+                theme={{ colors: { primary: theme.colors.primary } }}
               />
             </View>
 
@@ -282,60 +333,86 @@ export default function ProfileScreen() {
               value={calorieGoal}
               onChangeText={setCalorieGoal}
               keyboardType="numeric"
-              left={<TextInput.Icon icon="fire" color={theme.colors.onSurfaceVariant} />}
-              style={{ backgroundColor: 'transparent', marginBottom: 20 }}
+              editable={editingMetas}
+              left={<TextInput.Icon icon="fire" color={editingMetas ? theme.colors.onSurfaceVariant : 'rgba(255,255,255,0.2)'} />}
+              style={{ backgroundColor: editingMetas ? 'transparent' : 'rgba(255,255,255,0.02)', marginBottom: 20 }}
               outlineStyle={{ borderRadius: 12, borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1.5 }}
-              textColor={theme.colors.onSurface} theme={{ colors: { primary: theme.colors.primary } }}
+              textColor={editingMetas ? theme.colors.onSurface : theme.colors.onSurfaceVariant}
+              theme={{ colors: { primary: theme.colors.primary } }}
             />
 
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  Macros Diarios
-                </Text>
-              </View>
+            {editingMetas && (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Macros Diarios
+                  </Text>
+                </View>
 
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12, marginRight: 1, fontWeight: '600' }}>
-                  Autocalcular
-                </Text>
-                <Switch
-                  value={autoCalculateMacros}
-                  onValueChange={setAutoCalculateMacros}
-                  color={theme.colors.primary}
-                />
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12, marginRight: 1, fontWeight: '600' }}>
+                    Autocalcular
+                  </Text>
+                  <Switch
+                    value={autoCalculateMacros}
+                    onValueChange={setAutoCalculateMacros}
+                    color={theme.colors.primary}
+                  />
+                </View>
               </View>
-            </View>
+            )}
 
             <View style={{ gap: 12, marginBottom: 24 }}>
-              <TextInput mode="outlined" label="Proteínas (g)" value={proteinGoal} onChangeText={setProteinGoal} keyboardType="numeric"
-                editable={!autoCalculateMacros}
-                left={<TextInput.Icon icon="food-steak" color={autoCalculateMacros ? 'rgba(255,255,255,0.2)' : theme.colors.onSurfaceVariant} />}
-                style={{ backgroundColor: autoCalculateMacros ? 'rgba(255,255,255,0.02)' : 'transparent' }}
+              <TextInput
+                mode="outlined"
+                label="Proteínas (g)"
+                value={proteinGoal}
+                onChangeText={setProteinGoal}
+                keyboardType="numeric"
+                editable={editingMetas && !autoCalculateMacros}
+                left={<TextInput.Icon icon="food-steak" color={!editingMetas || autoCalculateMacros ? 'rgba(255,255,255,0.2)' : theme.colors.onSurfaceVariant} />}
+                style={{ backgroundColor: !editingMetas || autoCalculateMacros ? 'rgba(255,255,255,0.02)' : 'transparent' }}
                 outlineStyle={{ borderRadius: 12, borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1.5 }}
-                textColor={autoCalculateMacros ? theme.colors.onSurfaceVariant : theme.colors.onSurface}
+                textColor={!editingMetas || autoCalculateMacros ? theme.colors.onSurfaceVariant : theme.colors.onSurface}
                 theme={{ colors: { primary: theme.colors.primary } }}
               />
-              <TextInput mode="outlined" label="Carbohidratos (g)" value={carbsGoal} onChangeText={setCarbsGoal} keyboardType="numeric"
-                editable={!autoCalculateMacros}
-                left={<TextInput.Icon icon="food-croissant" color={autoCalculateMacros ? 'rgba(255,255,255,0.2)' : theme.colors.onSurfaceVariant} />}
-                style={{ backgroundColor: autoCalculateMacros ? 'rgba(255,255,255,0.02)' : 'transparent' }}
+              <TextInput
+                mode="outlined"
+                label="Carbohidratos (g)"
+                value={carbsGoal}
+                onChangeText={setCarbsGoal}
+                keyboardType="numeric"
+                editable={editingMetas && !autoCalculateMacros}
+                left={<TextInput.Icon icon="food-croissant" color={!editingMetas || autoCalculateMacros ? 'rgba(255,255,255,0.2)' : theme.colors.onSurfaceVariant} />}
+                style={{ backgroundColor: !editingMetas || autoCalculateMacros ? 'rgba(255,255,255,0.02)' : 'transparent' }}
                 outlineStyle={{ borderRadius: 12, borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1.5 }}
-                textColor={autoCalculateMacros ? theme.colors.onSurfaceVariant : theme.colors.onSurface}
+                textColor={!editingMetas || autoCalculateMacros ? theme.colors.onSurfaceVariant : theme.colors.onSurface}
                 theme={{ colors: { primary: theme.colors.primary } }}
               />
-              <TextInput mode="outlined" label="Grasas (g)" value={fatsGoal} onChangeText={setFatsGoal} keyboardType="numeric"
-                editable={!autoCalculateMacros}
-                left={<TextInput.Icon icon="oil" color={autoCalculateMacros ? 'rgba(255,255,255,0.2)' : theme.colors.onSurfaceVariant} />}
-                style={{ backgroundColor: autoCalculateMacros ? 'rgba(255,255,255,0.02)' : 'transparent' }}
+              <TextInput
+                mode="outlined"
+                label="Grasas (g)"
+                value={fatsGoal}
+                onChangeText={setFatsGoal}
+                keyboardType="numeric"
+                editable={editingMetas && !autoCalculateMacros}
+                left={<TextInput.Icon icon="oil" color={!editingMetas || autoCalculateMacros ? 'rgba(255,255,255,0.2)' : theme.colors.onSurfaceVariant} />}
+                style={{ backgroundColor: !editingMetas || autoCalculateMacros ? 'rgba(255,255,255,0.02)' : 'transparent' }}
                 outlineStyle={{ borderRadius: 12, borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1.5 }}
-                textColor={autoCalculateMacros ? theme.colors.onSurfaceVariant : theme.colors.onSurface}
+                textColor={!editingMetas || autoCalculateMacros ? theme.colors.onSurfaceVariant : theme.colors.onSurface}
                 theme={{ colors: { primary: theme.colors.primary } }}
               />
             </View>
 
-            <Button mode="contained" onPress={handleSave} style={{ borderRadius: 12, paddingVertical: 4 }}>
-              <Text style={{ fontWeight: '700', color: theme.dark ? '#000' : '#fff' }}>Guardar Metas</Text>
+            <Button
+              mode="contained"
+              onPress={editingMetas ? handleSave : () => setEditingMetas(true)}
+              loading={updateMutation.isPending}
+              style={{ borderRadius: 12, paddingVertical: 4 }}
+            >
+              <Text style={{ fontWeight: '700', color: theme.dark ? '#000' : '#fff' }}>
+                {editingMetas ? 'Guardar cambios' : 'Editar metas'}
+              </Text>
             </Button>
           </View>
         )}

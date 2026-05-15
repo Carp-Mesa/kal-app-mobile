@@ -62,7 +62,7 @@ const FilterTabs = ({ selected, onSelect, theme }: any) => {
 
 export default function ProfileScreen() {
   const theme = useTheme();
-  const { themeMode, toggleTheme } = useAppStore();
+  const { themeMode, toggleTheme, resetOnboarding } = useAppStore();
   const queryClient = useQueryClient();
   const clearTokens = useAuthStore(state => state.clearTokens);
   const isInitialized = useRef(false);
@@ -433,6 +433,18 @@ export default function ProfileScreen() {
             </View>
 
             <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.05)', marginBottom: 24 }} />
+
+            <TouchableOpacity
+              onPress={() => {
+                resetOnboarding();
+                router.replace('/(onboarding)/screen');
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, marginBottom: 12 }}
+            >
+              <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 14, fontWeight: '600' }}>
+                Ver introducción
+              </Text>
+            </TouchableOpacity>
 
             <TouchableOpacity onPress={handleLogout} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12 }}>
               <Text style={{ color: '#FF3B30', fontSize: 16, fontWeight: '700' }}>Cerrar Sesión</Text>

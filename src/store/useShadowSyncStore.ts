@@ -1,13 +1,13 @@
 import { create } from 'zustand';
 import apiClient from '../services/apiClient';
-import { useAuthStore } from './useAuthStore';
-import { useWaterStore } from './useWaterStore';
-import { useNutritionStore } from './useNutritionStore';
-import { useSleepStore } from './useSleepStore';
-import { useWorkoutStore } from './useWorkoutStore';
-import { useProfileStore } from './useProfileStore';
-import type { WaterLog, NutritionLog, SleepLog, WorkoutLog } from './types';
+import type { WorkoutLog } from './types';
 import { generateId } from './types';
+import { useAuthStore } from './useAuthStore';
+import { useNutritionStore } from './useNutritionStore';
+import { useProfileStore } from './useProfileStore';
+import { useSleepStore } from './useSleepStore';
+import { useWaterStore } from './useWaterStore';
+import { useWorkoutStore } from './useWorkoutStore';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Shadow Sync Engine — Silent background synchronization + Cold Start bootstrap
@@ -100,7 +100,6 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
     // ── Auth Guard: no authenticated user → skip entirely ─────────────────
     const accessToken = useAuthStore.getState().accessToken;
     if (!accessToken) {
-      console.log('🛑 [ShadowSync] syncAll cancelled: no authenticated user.');
       return;
     }
 
@@ -251,7 +250,7 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
 
       set({ lastSyncAt: new Date().toISOString() });
     } catch (err) {
-      console.log('[ShadowSync] syncAll unexpected error:', err);
+      console.error('[ShadowSync] syncAll unexpected error:', err);
     } finally {
       set({ isSyncing: false });
     }
@@ -273,7 +272,6 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
     // ── Auth Guard: no authenticated user → skip entirely ─────────────────
     const accessToken = useAuthStore.getState().accessToken;
     if (!accessToken) {
-      console.log('🛑 [ShadowSync] fetchAndMerge cancelled: no authenticated user.');
       return;
     }
 
@@ -323,7 +321,7 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
       set({ lastFetchAt: new Date().toISOString() });
     } catch (err) {
       // Swallow — this is a best-effort background operation
-      console.log('[ShadowSync] fetchAndMerge error (silent):', err);
+      console.error('[ShadowSync] fetchAndMerge error (silent):', err);
     } finally {
       set({ isFetching: false });
     }

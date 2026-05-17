@@ -1,6 +1,6 @@
+import { FadeIn } from '@/src/components/FadeIn';
+import type { WorkoutLog } from '@/src/store/types';
 import { useWorkoutStore } from '@/src/store/useWorkoutStore';
-import type { WorkoutLog, ExerciseLog } from '@/src/store/types';
-import { FadeIn } from '@/src/components/GainsSkeleton';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
 import {

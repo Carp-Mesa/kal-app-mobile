@@ -1,4 +1,4 @@
-import { FadeIn } from '@/src/components/GainsSkeleton';
+import { FadeIn } from '@/src/components/FadeIn';
 import { NutritionModal } from '@/src/components/modals/NutritionModal';
 import { SleepModal } from '@/src/components/modals/SleepModal';
 import { WaterModal } from '@/src/components/modals/WaterModal';
@@ -13,17 +13,17 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { memo, useMemo, useState } from 'react';
 import {
-    Dimensions,
-    ScrollView,
-    StyleSheet,
-    View,
+  Dimensions,
+  ScrollView,
+  StyleSheet,
+  View,
 } from 'react-native';
 import {
-    Card,
-    Portal,
-    Snackbar,
-    Text,
-    useTheme,
+  Card,
+  Portal,
+  Snackbar,
+  Text,
+  useTheme,
 } from 'react-native-paper';
 import Svg, { Circle } from 'react-native-svg';
 

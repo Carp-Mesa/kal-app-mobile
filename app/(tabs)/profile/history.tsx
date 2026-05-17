@@ -1,10 +1,10 @@
-import { useNutritionHistory } from '@/src/hooks/useNutritionHistory';
-import { DailySummary, SummaryRange } from '@/src/services/historyService';
+import { getLocalDateString } from '@/src/store/types';
+import { useNutritionStore } from '@/src/store/useNutritionStore';
+import { useProfileStore } from '@/src/store/useProfileStore';
+import { useWaterStore } from '@/src/store/useWaterStore';
 import React, { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import {
-  ActivityIndicator,
-  Button,
   Card,
   Icon,
   ProgressBar,
@@ -13,6 +13,16 @@ import {
   Text,
   useTheme,
 } from 'react-native-paper';
+
+type SummaryRange = '7d' | '30d';
+
+interface DailySummary {
+  date: string;
+  total_calories: number;
+  total_water: number;
+  calorie_goal: number;
+  water_goal: number;
+}
 
 const RANGE_OPTIONS = [
   { value: '7d' as const, label: 'Última Semana' },
@@ -112,34 +122,65 @@ function DailyCard({ item }: DailyCardProps) {
   );
 }
 
-// ─── Skeleton ────────────────────────────────────────────────────────────────
-
-function SkeletonCard() {
-  return (
-    <View style={[styles.card, styles.skeletonCard]}>
-      <View style={[styles.skeletonLine, { width: '40%', marginBottom: 12 }]} />
-      <View style={[styles.skeletonLine, { width: '100%', marginBottom: 10 }]} />
-      <View style={[styles.skeletonLine, { width: '100%' }]} />
-    </View>
-  );
-}
-
-function SkeletonList() {
-  return (
-    <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
-      {Array.from({ length: 5 }).map((_, i) => (
-        <SkeletonCard key={i} />
-      ))}
-    </View>
-  );
-}
-
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 
 export default function NutritionHistoryScreen() {
   const theme = useTheme();
   const [range, setRange] = useState<SummaryRange>('7d');
-  const { data, isLoading, isError, refetch, isFetching } = useNutritionHistory(range);
+  const nutritionLogs = useNutritionStore((state) => state.logs);
+  const waterLogs = useWaterStore((state) => state.logs);
+  const profile = useProfileStore((state) => state.profile);
+
+  const data = useMemo(() => {
+    const days = range === '7d' ? 7 : 30;
+    const dateList: string[] = [];
+    const dateSet = new Set<string>();
+
+    for (let i = 0; i < days; i += 1) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = getLocalDateString(d);
+      dateList.push(dateStr);
+      dateSet.add(dateStr);
+    }
+
+    const calorieGoal = profile?.calorie_goal ?? 2000;
+    const waterGoal = profile?.water_goal ?? 2000;
+    const byDate = new Map<string, DailySummary>();
+
+    const ensure = (date: string) => {
+      let entry = byDate.get(date);
+      if (!entry) {
+        entry = {
+          date,
+          total_calories: 0,
+          total_water: 0,
+          calorie_goal: calorieGoal,
+          water_goal: waterGoal,
+        };
+        byDate.set(date, entry);
+      }
+      return entry;
+    };
+
+    for (const log of nutritionLogs) {
+      const logDate = getLocalDateString(new Date(log.created_at));
+      if (!dateSet.has(logDate)) continue;
+      const entry = ensure(logDate);
+      entry.total_calories += log.calories;
+    }
+
+    for (const log of waterLogs) {
+      const logDate = getLocalDateString(new Date(log.created_at));
+      if (!dateSet.has(logDate)) continue;
+      const entry = ensure(logDate);
+      entry.total_water += log.amount_ml;
+    }
+
+    return dateList
+      .map((date) => byDate.get(date))
+      .filter((entry): entry is DailySummary => !!entry && (entry.total_calories > 0 || entry.total_water > 0));
+  }, [range, nutritionLogs, waterLogs, profile]);
 
   const totals = useMemo(() => {
     if (!data || data.length === 0) return null;
@@ -147,35 +188,6 @@ export default function NutritionHistoryScreen() {
     const totalWater = data.reduce((sum, d) => sum + d.total_water, 0);
     return { calories: totalCal, water: totalWater };
   }, [data]);
-
-  // ── Loading ──────────────────────────────────────────────────────────────
-
-  if (isLoading) {
-    return (
-      <View style={[styles.center, { backgroundColor: theme.colors.background }]}>
-        <ActivityIndicator animating size="large" color={theme.colors.primary} />
-        <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, marginTop: 12 }}>
-          Cargando historial…
-        </Text>
-      </View>
-    );
-  }
-
-  // ── Error ────────────────────────────────────────────────────────────────
-
-  if (isError) {
-    return (
-      <View style={[styles.center, { backgroundColor: theme.colors.background }]}>
-        <Text style={{ fontSize: 48, marginBottom: 16 }}>⚠️</Text>
-        <Text variant="titleMedium" style={{ color: theme.colors.error, marginBottom: 12 }}>
-          Error al cargar el historial
-        </Text>
-        <Button mode="contained" onPress={() => refetch()} icon="refresh">
-          Reintentar
-        </Button>
-      </View>
-    );
-  }
 
   // ── Empty ────────────────────────────────────────────────────────────────
 
@@ -231,16 +243,6 @@ export default function NutritionHistoryScreen() {
         </Surface>
       )}
 
-      {/* ── Refetch indicator ─────────────────────────────────── */}
-      {isFetching && (
-        <ActivityIndicator
-          animating
-          size="small"
-          color={theme.colors.primary}
-          style={styles.refetchIndicator}
-        />
-      )}
-
       {/* ── List ──────────────────────────────────────────────── */}
       <FlatList
         data={data}
@@ -292,9 +294,6 @@ const styles = StyleSheet.create({
     marginHorizontal: 14,
     opacity: 0.3,
   },
-  refetchIndicator: {
-    marginTop: 8,
-  },
   list: {
     paddingHorizontal: 16,
     paddingTop: 12,
@@ -339,14 +338,5 @@ const styles = StyleSheet.create({
   progressTrack: {
     borderRadius: 3,
     overflow: 'hidden',
-  },
-  skeletonCard: {
-    backgroundColor: '#E8E8EE',
-    padding: 16,
-  },
-  skeletonLine: {
-    height: 12,
-    backgroundColor: '#D0D0DD',
-    borderRadius: 6,
   },
 });

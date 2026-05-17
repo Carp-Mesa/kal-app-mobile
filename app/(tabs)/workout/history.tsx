@@ -1,16 +1,15 @@
 import { useWorkoutHistory } from '@/src/hooks/useWorkoutHistory';
-import type { WorkoutLog, ExerciseLog } from '@/src/store/types';
+import type { WorkoutLog } from '@/src/store/types';
 import React, { useState } from 'react';
 import { FlatList, ScrollView, StyleSheet, View } from 'react-native';
 import {
-    Button,
-    Card,
-    Chip,
-    Divider,
-    Icon,
-    Surface,
-    Text,
-    useTheme,
+  Card,
+  Chip,
+  Divider,
+  Icon,
+  Surface,
+  Text,
+  useTheme,
 } from 'react-native-paper';
 
 type SetEntry = { reps: number; weight_kg: number };

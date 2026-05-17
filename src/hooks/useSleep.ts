@@ -1,9 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
-import { getTodaySleep } from '../services/sleepService';
+import { useSleepStore } from '../store/useSleepStore';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Local-First Sleep Hook
+// ═══════════════════════════════════════════════════════════════════════════════
+// Reads directly from the persisted local store — no HTTP, no loading states.
 
 export const useTodaySleep = () => {
-  return useQuery({
-    queryKey: ['todaySleep'],
-    queryFn: getTodaySleep,
-  });
+  const sleepData = useSleepStore((state) => state.getTodaySleep());
+  return { data: sleepData };
 };

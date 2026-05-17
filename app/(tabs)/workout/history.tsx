@@ -1,6 +1,5 @@
 import { useWorkoutHistory } from '@/src/hooks/useWorkoutHistory';
-import { WorkoutCardSkeleton } from '@/src/components/GainsSkeleton';
-import { resolveSets, SetEntry, WorkoutHistoryItem } from '@/src/services/workoutService';
+import type { WorkoutLog, ExerciseLog } from '@/src/store/types';
 import React, { useState } from 'react';
 import { FlatList, ScrollView, StyleSheet, View } from 'react-native';
 import {
@@ -13,6 +12,8 @@ import {
     Text,
     useTheme,
 } from 'react-native-paper';
+
+type SetEntry = { reps: number; weight_kg: number };
 
 const formatSetsCompact = (sets: SetEntry[]): string => {
   if (sets.length === 0) return '0 series';
@@ -34,7 +35,7 @@ const formatDate = (dateStr: string): string => {
 };
 
 interface WorkoutCardProps {
-  item: WorkoutHistoryItem;
+  item: WorkoutLog;
 }
 
 function WorkoutCard({ item }: WorkoutCardProps) {
@@ -86,7 +87,7 @@ function WorkoutCard({ item }: WorkoutCardProps) {
           <Surface style={[styles.detailSurface, { backgroundColor: theme.colors.surfaceVariant }]} elevation={0}>
             <Divider style={{ marginBottom: 8 }} />
             {item.exercises.map((ex, idx) => {
-              const sets = resolveSets(ex);
+              const sets = ex.sets || [];
               return (
                 <View key={ex.id || idx} style={styles.exerciseRow}>
                   <View style={styles.exerciseIndex}>
@@ -128,12 +129,11 @@ function WorkoutCard({ item }: WorkoutCardProps) {
 
 export default function WorkoutHistoryScreen() {
   const theme = useTheme();
-  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } =
-    useWorkoutHistory();
+  const { data } = useWorkoutHistory();
 
-  const workouts = data?.pages.flatMap(p => p.data) ?? [];
+  const workouts = data?.pages.flatMap((p: any) => p.data) ?? [];
 
-  if (!isLoading && !isError && workouts.length === 0) {
+  if (workouts.length === 0) {
     return (
       <View style={[styles.centered, { backgroundColor: theme.colors.background }]}>
         <Text style={styles.emptyEmoji}>🏋️</Text>
@@ -147,30 +147,7 @@ export default function WorkoutHistoryScreen() {
     );
   }
 
-  if (isLoading) {
-    return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <WorkoutCardSkeleton />
-        <WorkoutCardSkeleton />
-        <WorkoutCardSkeleton />
-        <WorkoutCardSkeleton />
-      </View>
-    );
-  }
 
-  if (isError) {
-    return (
-      <View style={[styles.centered, { backgroundColor: theme.colors.background }]}>
-        <Text style={styles.emptyEmoji}>⚠️</Text>
-        <Text variant="titleMedium" style={{ color: theme.colors.error, marginBottom: 12 }}>
-          Error al cargar el historial
-        </Text>
-        <Button mode="contained" onPress={() => refetch()}>
-          Reintentar
-        </Button>
-      </View>
-    );
-  }
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -186,13 +163,7 @@ export default function WorkoutHistoryScreen() {
           </Text>
         }
         ListFooterComponent={
-          hasNextPage ? (
-            <Button mode="outlined" onPress={() => fetchNextPage()} loading={isFetchingNextPage} style={styles.loadMoreBtn} icon="chevron-down">
-              Cargar más
-            </Button>
-          ) : (
-            <View style={{ height: 40 }} />
-          )
+          <View style={{ height: 40 }} />
         }
         showsVerticalScrollIndicator={false}
       />

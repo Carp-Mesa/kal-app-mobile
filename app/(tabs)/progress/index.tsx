@@ -1,7 +1,7 @@
-import { getWorkoutHistory, resolveSets, SetEntry, WorkoutHistoryItem } from '@/src/services/workoutService';
-import { ProgressSkeleton, FadeIn } from '@/src/components/GainsSkeleton';
+import { useWorkoutStore } from '@/src/store/useWorkoutStore';
+import type { WorkoutLog, ExerciseLog } from '@/src/store/types';
+import { FadeIn } from '@/src/components/GainsSkeleton';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
 import React, { useMemo, useState } from 'react';
 import {
   Dimensions,
@@ -21,6 +21,11 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const CHART_WIDTH = SCREEN_WIDTH - 40;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
+
+interface SetEntry {
+  reps: number;
+  weight_kg: number;
+}
 
 interface ExerciseSession {
   workoutId: string;
@@ -57,12 +62,12 @@ const formatSessionSummary = (sets?: SetEntry[] | null): string => {
 const calculateVolume = (sets?: SetEntry[] | null): number =>
   (sets || []).reduce((sum, s) => sum + (s.reps || 0) * (s.weight_kg || 0), 0);
 
-const groupExercises = (workouts: WorkoutHistoryItem[]): Map<string, ExerciseSession[]> => {
+const groupExercises = (workouts: WorkoutLog[]): Map<string, ExerciseSession[]> => {
   const map = new Map<string, ExerciseSession[]>();
   for (const workout of workouts) {
     if (!workout.exercises || !Array.isArray(workout.exercises)) continue;
     for (const ex of workout.exercises) {
-      const sets = resolveSets(ex);
+      const sets = ex.sets || [];
       if (sets.length === 0) continue;
       const volume = calculateVolume(sets);
       const totalReps = sets.reduce((sum, s) => sum + (s.reps || 0), 0);
@@ -219,19 +224,17 @@ const VolumeChart = ({ sessions }: { sessions: ExerciseSession[] }) => {
 
 export default function ProgressScreen() {
   const theme = useTheme();
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['workoutAnalysis'],
-    queryFn: () => getWorkoutHistory(100, 0),
-  });
+  // ── LOCAL-FIRST: Read all workout data from local store ──────────────
+  const allWorkouts = useWorkoutStore((state) => state.logs);
 
   const [selectedExercise, setSelectedExercise] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
 
   const grouped = useMemo(() => {
-    if (!data?.data) return new Map<string, ExerciseSession[]>();
-    return groupExercises(data.data);
-  }, [data]);
+    if (allWorkouts.length === 0) return new Map<string, ExerciseSession[]>();
+    return groupExercises(allWorkouts);
+  }, [allWorkouts]);
 
   const exerciseNames = useMemo(() => {
     const names = Array.from(grouped.keys());
@@ -254,24 +257,7 @@ export default function ProgressScreen() {
     ? Math.max(...selectedSessions.map((s) => s.volume))
     : 0;
 
-  if (isLoading) {
-    return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <ProgressSkeleton />
-      </View>
-    );
-  }
 
-  if (isError) {
-    return (
-      <View style={[styles.centered, { backgroundColor: theme.colors.background }]}>
-        <Text style={{ fontSize: 48, marginBottom: 16 }}>⚠️</Text>
-        <Text variant="titleMedium" style={{ color: theme.colors.error, marginBottom: 12 }}>
-          Error al cargar datos
-        </Text>
-      </View>
-    );
-  }
 
   if (exerciseNames.length === 0) {
     return (

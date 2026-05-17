@@ -1,7 +1,8 @@
-import { getProfile, updateProfile } from '@/src/services/profileService';
+import { updateProfile as updateProfileApi } from '@/src/services/profileService';
+import { useProfileStore } from '@/src/store/useProfileStore';
 import { useAppStore } from '@/src/store/useAppStore';
 import { useAuthStore } from '@/src/store/useAuthStore';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { clearAllStores } from '@/src/store/clearAllStores';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -12,7 +13,6 @@ import {
   View
 } from 'react-native';
 import {
-  ActivityIndicator,
   Button,
   Snackbar,
   Switch,
@@ -63,7 +63,8 @@ const FilterTabs = ({ selected, onSelect, theme }: any) => {
 export default function ProfileScreen() {
   const theme = useTheme();
   const { themeMode, toggleTheme, resetOnboarding } = useAppStore();
-  const queryClient = useQueryClient();
+  const profile = useProfileStore((state) => state.profile);
+  const updateProfileStore = useProfileStore((state) => state.updateProfile);
   const clearTokens = useAuthStore(state => state.clearTokens);
   const isInitialized = useRef(false);
 
@@ -89,23 +90,8 @@ export default function ProfileScreen() {
   const [carbsGoal, setCarbsGoal] = useState('');
   const [fatsGoal, setFatsGoal] = useState('');
 
-  const { data: profile, isLoading } = useQuery({
-    queryKey: ['profile'],
-    queryFn: getProfile,
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: updateProfile,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['profile'] });
-      setSnackbar({ visible: true, message: 'Perfil actualizado correctamente' });
-      setEditingFicha(false);
-      setEditingMetas(false);
-    },
-    onError: () => {
-      setSnackbar({ visible: true, message: 'Error al actualizar el perfil' });
-    },
-  });
+  // ── LOCAL-FIRST: Profile is read from local store (instant) ────────
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (profile && !isInitialized.current) {
@@ -147,7 +133,7 @@ export default function ProfileScreen() {
   }, [calorieGoal, autoCalculateMacros]);
 
   const handleSave = () => {
-    updateMutation.mutate({
+    const updates = {
       full_name: fullName.trim() || undefined,
       age: parseInt(age, 10) || undefined,
       height: parseFloat(height) || undefined,
@@ -159,10 +145,23 @@ export default function ProfileScreen() {
       protein_goal: parseInt(proteinGoal, 10) || undefined,
       carbs_goal: parseInt(carbsGoal, 10) || undefined,
       fats_goal: parseInt(fatsGoal, 10) || undefined,
+    };
+
+    // LOCAL-FIRST: Update store immediately
+    updateProfileStore(updates);
+    setSnackbar({ visible: true, message: 'Perfil actualizado correctamente' });
+    setEditingFicha(false);
+    setEditingMetas(false);
+
+    // Background sync to server (silent)
+    updateProfileApi(updates).catch(() => {
+      // Swallow — shadow sync will handle retries
     });
   };
 
   const handleLogout = () => {
+    // Wipe all local data so the next user cannot see this user's records
+    clearAllStores();
     clearTokens();
     router.replace('/(auth)/login');
   };
@@ -176,13 +175,7 @@ export default function ProfileScreen() {
     marginBottom: 20,
   });
 
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.background }}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
-    );
-  }
+
 
   return (
     <KeyboardAvoidingView
@@ -276,7 +269,7 @@ export default function ProfileScreen() {
             <Button
               mode="contained"
               onPress={editingFicha ? handleSave : () => setEditingFicha(true)}
-              loading={updateMutation.isPending}
+              loading={isSaving}
               style={{ borderRadius: 12, paddingVertical: 4 }}
             >
               <Text style={{ fontWeight: '700', color: theme.dark ? '#000' : '#fff' }}>
@@ -407,7 +400,7 @@ export default function ProfileScreen() {
             <Button
               mode="contained"
               onPress={editingMetas ? handleSave : () => setEditingMetas(true)}
-              loading={updateMutation.isPending}
+              loading={isSaving}
               style={{ borderRadius: 12, paddingVertical: 4 }}
             >
               <Text style={{ fontWeight: '700', color: theme.dark ? '#000' : '#fff' }}>

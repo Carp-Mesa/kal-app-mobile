@@ -1,17 +1,25 @@
-import { useInfiniteQuery } from '@tanstack/react-query';
-import { getWorkoutHistory } from '../services/workoutService';
+import { useMemo } from 'react';
+import { useWorkoutStore } from '../store/useWorkoutStore';
 
-const PAGE_LIMIT = 10;
+// ═══════════════════════════════════════════════════════════════════════════════
+// Local-First Workout History Hook
+// ═══════════════════════════════════════════════════════════════════════════════
+// Reads directly from the persisted local store — no pagination needed,
+// no HTTP calls, no loading states.
 
 export const useWorkoutHistory = () => {
-  return useInfiniteQuery({
-    queryKey: ['workoutHistory'],
-    queryFn: ({ pageParam = 0 }) => getWorkoutHistory(PAGE_LIMIT, pageParam),
-    initialPageParam: 0,
-    getNextPageParam: (lastPage) => {
-      if (!lastPage.pagination.has_more) return undefined;
-      return lastPage.pagination.offset + lastPage.pagination.limit;
-    },
-    staleTime: 2 * 60 * 1000,
-  });
+  const logs = useWorkoutStore((state) => state.logs);
+
+  const pages = useMemo(() => {
+    const sorted = [...logs].sort((a, b) => b.date.localeCompare(a.date));
+    return [{ data: sorted, pagination: { total: sorted.length, limit: sorted.length, offset: 0, has_more: false } }];
+  }, [logs]);
+
+  return {
+    data: { pages },
+    isLoading: false,
+    isFetchingNextPage: false,
+    hasNextPage: false,
+    fetchNextPage: () => {},
+  };
 };

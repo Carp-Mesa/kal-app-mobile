@@ -1,6 +1,6 @@
 import { useWorkoutHistory } from '@/src/hooks/useWorkoutHistory';
-import { WorkoutCardSkeleton, GainsSkeleton } from '@/src/components/GainsSkeleton';
-import { resolveSets, WorkoutHistoryItem } from '@/src/services/workoutService';
+import { useWorkoutStore } from '@/src/store/useWorkoutStore';
+import type { WorkoutLog, ExerciseLog } from '@/src/store/types';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useMemo, useState } from 'react';
@@ -65,7 +65,7 @@ const FilterTabs = ({ selected, onSelect, theme }: any) => {
 };
 
 interface WorkoutCardProps {
-  item: WorkoutHistoryItem;
+  item: WorkoutLog;
 }
 
 function WorkoutCard({ item }: WorkoutCardProps) {
@@ -113,7 +113,7 @@ function WorkoutCard({ item }: WorkoutCardProps) {
       {expanded && exerciseCount > 0 && (
         <View style={styles.detailsContainer}>
           {item.exercises.map((ex, idx) => {
-            const sets = resolveSets(ex);
+            const sets = ex.sets || [];
             const isConsistent = sets.length > 0 && sets.every(s => s.reps === sets[0].reps && s.weight_kg === sets[0].weight_kg);
 
             return (
@@ -182,23 +182,23 @@ function WorkoutCard({ item }: WorkoutCardProps) {
 export default function WorkoutIndexScreen() {
   const theme = useTheme();
   const [filter, setFilter] = useState('Esta semana');
-  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } = useWorkoutHistory();
+  const { data } = useWorkoutHistory();
 
   const workouts = useMemo(() => {
-    let all = data?.pages.flatMap(p => p.data) ?? [];
+    let all = data?.pages.flatMap((p: any) => p.data) ?? [];
     const today = new Date();
 
     if (filter === 'Esta semana') {
       const startOfWeek = getMonday(today);
-      all = all.filter(w => parseLocalDate(w.date) >= startOfWeek);
+      all = all.filter((w: any) => parseLocalDate(w.date) >= startOfWeek);
     } else if (filter === 'Mes') {
       const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-      all = all.filter(w => parseLocalDate(w.date) >= startOfMonth);
+      all = all.filter((w: any) => parseLocalDate(w.date) >= startOfMonth);
     }
     return all;
   }, [data, filter]);
 
-  if (!isLoading && !isError && data?.pages.flatMap(p => p.data).length === 0) {
+  if (data?.pages.flatMap((p: any) => p.data).length === 0) {
     return (
       <View style={[styles.centered, { backgroundColor: theme.colors.background }]}>
         <Text style={styles.emptyEmoji}>🏋️</Text>
@@ -215,35 +215,7 @@ export default function WorkoutIndexScreen() {
     );
   }
 
-  if (isLoading) {
-    return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <View style={{ marginBottom: 16, paddingTop: 16 }}>
-          <View style={{ paddingBottom: 16 }}>
-            <FilterTabs selected={filter} onSelect={setFilter} theme={theme} />
-          </View>
-          <GainsSkeleton width={160} height={16} borderRadius={8} style={{ alignSelf: 'center' }} />
-        </View>
-        <WorkoutCardSkeleton />
-        <WorkoutCardSkeleton />
-        <WorkoutCardSkeleton />
-      </View>
-    );
-  }
 
-  if (isError) {
-    return (
-      <View style={[styles.centered, { backgroundColor: theme.colors.background }]}>
-        <Text style={styles.emptyEmoji}>⚠️</Text>
-        <Text variant="titleMedium" style={{ color: theme.colors.error, marginBottom: 12 }}>
-          Error al cargar el historial
-        </Text>
-        <Button mode="contained" onPress={() => refetch()}>
-          Reintentar
-        </Button>
-      </View>
-    );
-  }
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -264,13 +236,7 @@ export default function WorkoutIndexScreen() {
           </View>
         }
         ListFooterComponent={
-          hasNextPage && filter === 'Ver todo' ? (
-            <Button mode="outlined" onPress={() => fetchNextPage()} loading={isFetchingNextPage} style={styles.loadMoreBtn} icon="chevron-down">
-              Cargar más
-            </Button>
-          ) : (
-            <View style={{ height: 40 }} />
-          )
+          <View style={{ height: 40 }} />
         }
         showsVerticalScrollIndicator={false}
       />

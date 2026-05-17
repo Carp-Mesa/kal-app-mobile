@@ -1,5 +1,7 @@
 import { authService } from '@/src/services/authService';
 import { useAuthStore } from '@/src/store/useAuthStore';
+import { useShadowSyncStore } from '@/src/store/useShadowSyncStore';
+import { clearAllStores } from '@/src/store/clearAllStores';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
@@ -94,8 +96,17 @@ export default function RegisterScreen() {
     try {
       const response = await authService.register(email, password);
       if (response && response.access_token) {
+        // 1. Wipe any residual data from a previous session
+        clearAllStores();
+
+        // 2. Persist new session
         setTokens(response.access_token, response.refresh_token);
+
+        // 3. Navigate immediately
         router.replace('/(tabs)');
+
+        // 4. Cold Start: fetch profile and any existing data from server
+        useShadowSyncStore.getState().fetchAndMerge(true);
       } else {
         setErrorMsg('Respuesta inválida del servidor.');
         shakeTrigger();

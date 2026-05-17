@@ -2,6 +2,12 @@ import axios, { InternalAxiosRequestConfig } from 'axios';
 import { router } from 'expo-router';
 import { useAuthStore } from '../store/useAuthStore';
 import { supabase } from './supabaseClient';
+// Store imports for inline clearAllStores on forced logout
+import { useWaterStore } from '../store/useWaterStore';
+import { useNutritionStore } from '../store/useNutritionStore';
+import { useSleepStore } from '../store/useSleepStore';
+import { useWorkoutStore } from '../store/useWorkoutStore';
+import { useProfileStore } from '../store/useProfileStore';
 
 const apiClient = axios.create({
   baseURL: process.env.EXPO_PUBLIC_API_URL,
@@ -9,6 +15,15 @@ const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Inline helper — avoids importing clearAllStores (circular dep via useShadowSyncStore → apiClient)
+function wipeLocalStores() {
+  useWaterStore.getState().clearLogs();
+  useNutritionStore.getState().clearLogs();
+  useSleepStore.getState().clearLogs();
+  useWorkoutStore.getState().clearLogs();
+  useProfileStore.getState().clearProfile();
+}
 
 let isRefreshing = false;
 let failedQueue: Array<{ resolve: (value?: unknown) => void; reject: (reason?: any) => void }> = [];
@@ -68,6 +83,7 @@ apiClient.interceptors.response.use(
       const currentRefreshToken = authStore.refreshToken;
 
       if (!currentRefreshToken) {
+        wipeLocalStores();
         authStore.clearTokens();
         router.replace('/(auth)/login');
         return Promise.reject(error);
@@ -103,10 +119,11 @@ apiClient.interceptors.response.use(
 
       } catch (refreshError: any) {
         console.log(`[Refresh] FALLO. Error: ${refreshError.message || refreshError}`);
-        processQueue(error, null); // Rechazamos la cola con el error original (401)
+        processQueue(error, null);
+        wipeLocalStores();
         authStore.clearTokens();
         router.replace('/(auth)/login');
-        return Promise.reject(error); // Retornamos el error original en lugar de refreshError
+        return Promise.reject(error);
       } finally {
         isRefreshing = false;
       }

@@ -1,13 +1,12 @@
 import { useExerciseSuggestions } from '@/src/hooks/useExerciseSuggestions';
 import { useShake } from '@/src/hooks/useShake';
-import { createWorkout, ExercisePayload, SetEntry } from '@/src/services/workoutService';
+import { ExercisePayload, SetEntry } from '@/src/services/workoutService';
 import { useAppStore } from '@/src/store/useAppStore';
+import { useWorkoutStore } from '@/src/store/useWorkoutStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -426,7 +425,7 @@ const ExerciseCard = memo(function ExerciseCard({
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export default function NewWorkoutScreen() {
-  const queryClient = useQueryClient();
+  const addWorkout = useWorkoutStore((state) => state.addWorkout);
   const scrollRef = useRef<ScrollView>(null);
   const { data: rawSuggestions = [] } = useExerciseSuggestions();
   const { shake, animatedStyle } = useShake();
@@ -588,9 +587,7 @@ export default function NewWorkoutScreen() {
     if (hasErrors) {
       setValidationErrors(errs);
       shake();
-      // Scroll to first invalid exercise
       if (firstInvalidExerciseId) {
-        // Slight delay to allow re-render with red borders
         setTimeout(() => {
           const idx = form.exercises.findIndex((ex) => ex.id === firstInvalidExerciseId);
           if (idx >= 0 && scrollRef.current) {
@@ -602,35 +599,27 @@ export default function NewWorkoutScreen() {
     }
 
     setValidationErrors({ exerciseNameIds: [], setRepsIds: [], setWeightIds: [] });
-    setIsSaving(true);
-    try {
-      const exercisesPayload: ExercisePayload[] = form.exercises.map((ex) => ({
-        name: ex.name.trim(),
-        sets: ex.sets.map((s): SetEntry => ({
-          reps: Number(s.reps) || 0,
-          weight_kg: parseFloat(s.weight_kg) || 0,
-        })),
-        ...(ex.rpe && { rpe: Number(ex.rpe) || undefined }),
-      }));
 
-      await createWorkout({
-        name: form.name.trim(),
-        date: getLocalDateString(),
-        notes: form.notes.trim() || undefined,
-        duration_mins: Number(form.duration_mins) || 0,
-        exercises: exercisesPayload,
-      });
+    // ── LOCAL-FIRST: Write to Zustand store synchronously ────────────
+    const exercisesPayload = form.exercises.map((ex) => ({
+      name: ex.name.trim(),
+      sets: ex.sets.map((s) => ({
+        reps: Number(s.reps) || 0,
+        weight_kg: parseFloat(s.weight_kg) || 0,
+      })),
+      ...(ex.rpe && { rpe: Number(ex.rpe) || undefined }),
+    }));
 
-      await queryClient.invalidateQueries({ queryKey: ['progressToday'] });
-      await queryClient.invalidateQueries({ queryKey: ['workoutHistory'] });
+    addWorkout({
+      name: form.name.trim(),
+      date: getLocalDateString(),
+      notes: form.notes.trim() || undefined,
+      duration_mins: Number(form.duration_mins) || 0,
+      exercises: exercisesPayload,
+    });
 
-      router.back();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Ocurrió un error al guardar.';
-      setSnackbar({ visible: true, message });
-    } finally {
-      setIsSaving(false);
-    }
+    // Instant navigation — no HTTP await
+    router.back();
   };
   handleSaveRef.current = handleSave;
 
@@ -738,13 +727,7 @@ export default function NewWorkoutScreen() {
             <Text style={s.addExerciseText}>AÑADIR EJERCICIO</Text>
           </Pressable>
 
-          {/* Saving indicator */}
-          {isSaving && (
-            <View style={s.savingBanner}>
-              <ActivityIndicator size="small" color={CYBER} />
-              <Text style={s.savingText}>Guardando...</Text>
-            </View>
-          )}
+
 
           <View style={{ height: 32 }} />
         </ScrollView>

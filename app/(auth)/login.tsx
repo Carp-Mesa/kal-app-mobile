@@ -1,5 +1,7 @@
 import { authService } from '@/src/services/authService';
 import { useAuthStore } from '@/src/store/useAuthStore';
+import { useShadowSyncStore } from '@/src/store/useShadowSyncStore';
+import { clearAllStores } from '@/src/store/clearAllStores';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
@@ -69,8 +71,18 @@ export default function LoginScreen() {
     try {
       const response = await authService.login(email, password);
       if (response && response.access_token) {
+        // 1. Wipe any previous user's data before populating new session
+        clearAllStores();
+
+        // 2. Persist the new session tokens
         setTokens(response.access_token, response.refresh_token);
+
+        // 3. Navigate to dashboard immediately (no loading gate)
         router.replace('/(tabs)');
+
+        // 4. Cold Start: bootstrap stores from server in the background
+        //    force=true bypasses the 60s cooldown since this is a fresh login
+        useShadowSyncStore.getState().fetchAndMerge(true);
       } else {
         setErrorMsg('Respuesta inválida del servidor.');
         shakeTrigger();

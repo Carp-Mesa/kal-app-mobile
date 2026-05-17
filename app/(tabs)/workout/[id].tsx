@@ -1,10 +1,9 @@
 import { useWorkoutDetail } from '@/src/hooks/useWorkoutDetail';
-import { resolveSets, SetEntry, WorkoutExercise } from '@/src/services/workoutService';
+import type { ExerciseLog } from '@/src/store/types';
 import { useLocalSearchParams, router } from 'expo-router';
 import React from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import {
-  ActivityIndicator,
   Button,
   Card,
   Chip,
@@ -38,6 +37,8 @@ const formatDate = (dateStr: string): string => {
   });
 };
 
+type SetEntry = { reps: number; weight_kg: number };
+
 const formatSets = (sets: SetEntry[]): string => {
   if (sets.length === 0) return '0 series';
   const firstReps = sets[0].reps || 0;
@@ -49,13 +50,13 @@ const formatSets = (sets: SetEntry[]): string => {
 };
 
 interface ExerciseCardProps {
-  exercise: WorkoutExercise;
+  exercise: ExerciseLog;
   index: number;
 }
 
 function ExerciseCard({ exercise, index }: ExerciseCardProps) {
   const theme = useTheme();
-  const sets = resolveSets(exercise);
+  const sets = exercise.sets || [];
   const setCount = sets.length;
 
   return (
@@ -125,31 +126,18 @@ function ExerciseCard({ exercise, index }: ExerciseCardProps) {
 export default function WorkoutDetailScreen() {
   const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data: workout, isLoading, isError, refetch } = useWorkoutDetail(id ?? '');
+  const { data: workout } = useWorkoutDetail(id ?? '');
 
-  if (isLoading) {
-    return (
-      <View style={[styles.centered, { backgroundColor: theme.colors.background }]}>
-        <ActivityIndicator animating size="large" color={theme.colors.primary} />
-        <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, marginTop: 12 }}>
-          Cargando entrenamiento…
-        </Text>
-      </View>
-    );
-  }
 
-  if (isError || !workout) {
+  if (!workout) {
     return (
       <View style={[styles.centered, { backgroundColor: theme.colors.background }]}>
         <Text style={{ fontSize: 48, marginBottom: 16 }}>⚠️</Text>
-        <Text variant="titleMedium" style={{ color: theme.colors.error, marginBottom: 8 }}>
-          No se pudo cargar el entrenamiento
+        <Text variant="titleMedium" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 8 }}>
+          Entrenamiento no encontrado
         </Text>
-        <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 20, textAlign: 'center' }}>
-          Es posible que el entrenamiento no exista o haya sido eliminado.
-        </Text>
-        <Button mode="contained" onPress={() => refetch()} icon="refresh">
-          Reintentar
+        <Button mode="contained" onPress={() => router.back()} icon="arrow-left">
+          Volver
         </Button>
       </View>
     );

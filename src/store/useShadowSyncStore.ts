@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import apiClient from '../services/apiClient';
+import { useAuthStore } from './useAuthStore';
 import { useWaterStore } from './useWaterStore';
 import { useNutritionStore } from './useNutritionStore';
 import { useSleepStore } from './useSleepStore';
@@ -95,9 +96,46 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
   // ═══════════════════════════════════════════════════════════════════════════
   syncAll: async () => {
     if (get().isSyncing) return;
+
+    // ── Auth Guard: no authenticated user → skip entirely ─────────────────
+    const accessToken = useAuthStore.getState().accessToken;
+    if (!accessToken) {
+      console.log('🛑 [ShadowSync] syncAll cancelled: no authenticated user.');
+      return;
+    }
+
     set({ isSyncing: true });
 
     try {
+      // ── 0. PROFILE GOALS (if locally modified) ────────────────────────────
+      const profileState = useProfileStore.getState();
+      if (!profileState.synced && profileState.profile) {
+        const p = profileState.profile;
+        try {
+          await apiClient.put('/profile/goals', {
+            calorie_goal: p.calorie_goal,
+            protein_goal: p.protein_goal,
+            carbs_goal: p.carbs_goal,
+            fats_goal: p.fats_goal,
+            water_goal: p.water_goal,
+            weight_goal: p.weight_goal,
+            full_name: p.full_name,
+          });
+          useProfileStore.getState().markProfileSynced();
+          set((s) => ({
+            debugLog: addLog({ timestamp: new Date().toISOString(), domain: 'profile', recordId: 'goals', status: 'success' }, s.debugLog),
+          }));
+        } catch (err: any) {
+          const status = err?.response?.status;
+          if (status && isClientError(status)) {
+            useProfileStore.getState().markProfileSynced();
+            set((s) => ({ debugLog: addLog({ timestamp: new Date().toISOString(), domain: 'profile', recordId: 'goals', status: 'client_error', message: `HTTP ${status}` }, s.debugLog) }));
+          } else {
+            set((s) => ({ debugLog: addLog({ timestamp: new Date().toISOString(), domain: 'profile', recordId: 'goals', status: 'network_error', message: err.message }, s.debugLog) }));
+          }
+        }
+      }
+
       // ── 1. WATER ─────────────────────────────────────────────────────────
       const unsyncedWater = useWaterStore.getState().getUnsynced();
       for (const record of unsyncedWater) {
@@ -232,6 +270,13 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
   fetchAndMerge: async (force = false) => {
     if (get().isFetching) return;
 
+    // ── Auth Guard: no authenticated user → skip entirely ─────────────────
+    const accessToken = useAuthStore.getState().accessToken;
+    if (!accessToken) {
+      console.log('🛑 [ShadowSync] fetchAndMerge cancelled: no authenticated user.');
+      return;
+    }
+
     // Cooldown: max once per 60s unless forced (e.g., post-login)
     if (!force && get().lastFetchAt) {
       const elapsed = Date.now() - new Date(get().lastFetchAt!).getTime();
@@ -242,16 +287,12 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
 
     try {
       // ── Fetch profile + workout history in parallel ──────────────────────
-      // NOTE: The backend exposes raw logs only for /workout/history.
-      // Water, nutrition, sleep only have aggregated /progress/today endpoints —
-      // not full log arrays. We bootstrap workouts and profile; water/nutrition/sleep
-      // will be populated gradually as the user logs new entries.
       const [profileRes, workoutsRes] = await Promise.allSettled([
         apiClient.get('/profile'),
         apiClient.get('/workout/history?limit=100&offset=0'),
       ]);
 
-      // ── Profile ──────────────────────────────────────────────────────────
+      // ── Profile (Cold Start → overwrite; Warm → keep local) ─────────────
       if (profileRes.status === 'fulfilled' && profileRes.value.data) {
         useProfileStore.getState().setProfile(profileRes.value.data);
       }
@@ -268,8 +309,6 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
           useWorkoutStore.setState({ logs: serverWorkouts });
         } else {
           // ── WARM MERGE: store already has data ───────────────────────────
-          // Keep all local records (especially unsynced ones).
-          // Add server records that don't exist locally yet.
           const localIds = new Set(localLogs.map((l) => l.id));
           const newFromServer = serverWorkouts.filter((w) => !localIds.has(w.id));
 

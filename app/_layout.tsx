@@ -1,9 +1,10 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import * as Linking from 'expo-linking';
 import { useEffect, useRef, useState } from 'react';
 import 'react-native-reanimated';
 
@@ -21,7 +22,9 @@ import { useWaterStore } from '@/src/store/useWaterStore';
 import { useNutritionStore } from '@/src/store/useNutritionStore';
 import { useSleepStore } from '@/src/store/useSleepStore';
 import { useShadowSync } from '@/src/hooks/useShadowSync';
+import { useShadowSyncStore } from '@/src/store/useShadowSyncStore';
 import { authService } from '@/src/services/authService';
+import { clearAllStores } from '@/src/store/clearAllStores';
 import { jwtDecode } from 'jwt-decode';
 
 export {
@@ -126,6 +129,38 @@ function RootLayoutNav() {
   const navTheme = themeMode === 'dark' ? DarkTheme : DefaultTheme;
 
   useShadowSync();
+
+  // ── Global deep link listener for OAuth callbacks ──────────────────────
+  // Handles URLs like: gainsstation://auth/callback#access_token=...&refresh_token=...
+  useEffect(() => {
+    const handleDeepLink = (event: { url: string }) => {
+      const { url } = event;
+      if (!url.includes('access_token')) return;
+
+      try {
+        const result = authService.handleOAuthCallback(url);
+        if (result.access_token && result.refresh_token) {
+          clearAllStores();
+          useAuthStore.getState().setTokens(result.access_token, result.refresh_token);
+          router.replace('/(tabs)');
+          useShadowSyncStore.getState().fetchAndMerge(true);
+        }
+      } catch {
+        // Swallow — the OAuth flow may send other URLs that don't contain tokens
+      }
+    };
+
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+
+    // Also check if the app was opened from a deep link while cold-starting
+    Linking.getInitialURL().then((url) => {
+      if (url && url.includes('access_token')) {
+        handleDeepLink({ url });
+      }
+    });
+
+    return () => subscription.remove();
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

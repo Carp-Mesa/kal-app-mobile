@@ -1,31 +1,31 @@
+import { FadeIn } from '@/src/components/GainsSkeleton';
 import { NutritionModal } from '@/src/components/modals/NutritionModal';
 import { SleepModal } from '@/src/components/modals/SleepModal';
 import { WaterModal } from '@/src/components/modals/WaterModal';
-import { FadeIn } from '@/src/components/GainsSkeleton';
-import { useWaterStore } from '@/src/store/useWaterStore';
-import { useNutritionStore } from '@/src/store/useNutritionStore';
-import { useSleepStore } from '@/src/store/useSleepStore';
-import { useWorkoutStore } from '@/src/store/useWorkoutStore';
-import { useProfileStore } from '@/src/store/useProfileStore';
-import { useAppStore } from '@/src/store/useAppStore';
 import { getLocalDateString } from '@/src/store/types';
+import { useAppStore } from '@/src/store/useAppStore';
+import { useNutritionStore } from '@/src/store/useNutritionStore';
+import { useProfileStore } from '@/src/store/useProfileStore';
+import { useSleepStore } from '@/src/store/useSleepStore';
+import { useWaterStore } from '@/src/store/useWaterStore';
+import { useWorkoutStore } from '@/src/store/useWorkoutStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { memo, useMemo, useState } from 'react';
 import {
-  Dimensions,
-  ScrollView,
-  StyleSheet,
-  View,
+    Dimensions,
+    ScrollView,
+    StyleSheet,
+    View,
 } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
 import {
-  Card,
-  Portal,
-  Snackbar,
-  Text,
-  useTheme,
+    Card,
+    Portal,
+    Snackbar,
+    Text,
+    useTheme,
 } from 'react-native-paper';
+import Svg, { Circle } from 'react-native-svg';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -84,6 +84,65 @@ const CircularProgressCard = memo(function CircularProgressCard({ title, subtitl
           <Text style={{ color: theme.colors.onSurface, fontSize: 22, fontWeight: 'bold' }}>
             {Math.round(progress * 100)}%
           </Text>
+        </View>
+      </View>
+    </View>
+  );
+});
+
+const NutritionCard = memo(function NutritionCard({ title, subtitle, icon, progress, proteinPct, carbsPct, fatsPct, proteinGoal, carbsGoal, fatsGoal, proteinTotal, carbsTotal, fatsTotal, style }: any) {
+  const theme = useTheme();
+
+  return (
+    <View style={[{
+      backgroundColor: theme.dark ? '#1c1c1e' : theme.colors.surface,
+      borderColor: 'rgba(255,255,255,0.15)',
+      borderWidth: 1.5,
+      borderRadius: 16,
+      padding: 16,
+    }, style]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+        <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(204, 255, 0, 0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+          <MaterialCommunityIcons name={icon} size={20} color={theme.colors.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: theme.colors.onSurface, fontWeight: '700', fontSize: 16 }} numberOfLines={1}>{title}</Text>
+          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12 }} numberOfLines={1}>{subtitle}</Text>
+        </View>
+      </View>
+
+      {/* ── Macro breakdown ────────────────────────────────────────── */}
+      <View style={{ marginTop: 0, gap: 6 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11, fontWeight: '600' }}>Calorías</Text>
+          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11 }}>{Math.round(progress * 100)}%</Text>
+        </View>
+        <View style={{ height: 3, borderRadius: 2, backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', marginBottom: 4 }}>
+          <View style={{ height: 3, borderRadius: 2, backgroundColor: theme.colors.primary, width: `${Math.min(progress * 100, 100)}%` }} />
+        </View>
+
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11, fontWeight: '600' }}>Proteína</Text>
+          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11 }}>{proteinTotal}/{proteinGoal}g</Text>
+        </View>
+        <View style={{ height: 3, borderRadius: 2, backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }}>
+          <View style={{ height: 3, borderRadius: 2, backgroundColor: '#4FC3F7', width: `${Math.min(proteinPct * 100, 100)}%` }} />
+        </View>
+
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11, fontWeight: '600' }}>Carbohidratos</Text>
+          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11 }}>{carbsTotal}/{carbsGoal}g</Text>
+        </View>
+        <View style={{ height: 3, borderRadius: 2, backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }}>
+          <View style={{ height: 3, borderRadius: 2, backgroundColor: '#FFB74D', width: `${Math.min(carbsPct * 100, 100)}%` }} />
+        </View>
+
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11, fontWeight: '600' }}>Grasas</Text>
+          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11 }}>{fatsTotal}/{fatsGoal}g</Text>
+        </View>
+        <View style={{ height: 3, borderRadius: 2, backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }}>
+          <View style={{ height: 3, borderRadius: 2, backgroundColor: '#EF5350', width: `${Math.min(fatsPct * 100, 100)}%` }} />
         </View>
       </View>
     </View>
@@ -194,6 +253,9 @@ export default function DashboardScreen() {
   // ── Goals (from persisted profile or defaults) ─────────────────────────
   const waterGoal = profile?.water_goal || 2000;
   const calorieGoal = profile?.calorie_goal || 2000;
+  const proteinGoal = profile?.protein_goal || 150;
+  const carbsGoal = profile?.carbs_goal || 300;
+  const fatsGoal = profile?.fats_goal || 70;
 
   // ── Derived values — stable via useMemo ─────────────────────────────────
   const today = getLocalDateString();
@@ -238,6 +300,9 @@ export default function DashboardScreen() {
 
   const nutritionProgress = calorieGoal > 0 ? nutritionTotals.calories / calorieGoal : 0;
   const nutritionLabel = `${nutritionTotals.calories}/${calorieGoal} kcal`;
+  const proteinPct = proteinGoal > 0 ? Math.min(nutritionTotals.protein / proteinGoal, 1) : 0;
+  const carbsPct = carbsGoal > 0 ? Math.min(nutritionTotals.carbs / carbsGoal, 1) : 0;
+  const fatsPct = fatsGoal > 0 ? Math.min(nutritionTotals.fats / fatsGoal, 1) : 0;
 
   const workoutCount = todayWorkouts.length;
   const workoutLabel = workoutCount > 0 ? `${workoutCount} Rutinas` : 'Pendiente';
@@ -284,11 +349,20 @@ export default function DashboardScreen() {
               progress={waterProgress}
               style={styles.halfCard}
             />
-            <CircularProgressCard
+            <NutritionCard
               title="Nutrición"
               subtitle={nutritionLabel}
               icon="food-apple"
               progress={nutritionProgress}
+              proteinPct={proteinPct}
+              carbsPct={carbsPct}
+              fatsPct={fatsPct}
+              proteinGoal={proteinGoal}
+              carbsGoal={carbsGoal}
+              fatsGoal={fatsGoal}
+              proteinTotal={nutritionTotals.protein}
+              carbsTotal={nutritionTotals.carbs}
+              fatsTotal={nutritionTotals.fats}
               style={styles.halfCard}
             />
           </View>

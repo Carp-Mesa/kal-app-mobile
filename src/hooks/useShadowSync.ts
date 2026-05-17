@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { useShadowSyncStore } from '../store/useShadowSyncStore';
+import { useAuthStore } from '../store/useAuthStore';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // useShadowSync — Global listener for automatic background sync
@@ -13,6 +14,7 @@ import { useShadowSyncStore } from '../store/useShadowSyncStore';
 //   2. App returning to foreground (AppState)
 //
 // Both triggers fire `syncAll()` silently — no UI involvement.
+// All operations are guarded by an auth check: no token = no requests.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export function useShadowSync() {
@@ -23,9 +25,9 @@ export function useShadowSync() {
   useEffect(() => {
     // ── 1. Network Connectivity Listener ──────────────────────────────────
     const unsubscribeNetInfo = NetInfo.addEventListener((state) => {
-      // Only fire when actually connected — not on every NetInfo update
       if (state.isConnected && state.isInternetReachable !== false) {
-        syncAll(); // Push pending unsynced records silently
+        if (!useAuthStore.getState().accessToken) return;
+        syncAll();
       }
     });
 
@@ -35,11 +37,11 @@ export function useShadowSync() {
         appStateRef.current.match(/inactive|background/) &&
         nextAppState === 'active'
       ) {
-        // App returned to foreground — sync + fetch profile silently
+        if (!useAuthStore.getState().accessToken) return;
         NetInfo.fetch().then((state) => {
           if (state.isConnected) {
             syncAll();
-            fetchAndMerge(); // Fetch profile (rate-limited to 60s internally)
+            fetchAndMerge();
           }
         });
       }
@@ -50,6 +52,7 @@ export function useShadowSync() {
 
     // ── 3. Initial sync on mount (2s delay to let stores hydrate) ────────
     const initialTimeout = setTimeout(() => {
+      if (!useAuthStore.getState().accessToken) return;
       NetInfo.fetch().then((state) => {
         if (state.isConnected) {
           syncAll();

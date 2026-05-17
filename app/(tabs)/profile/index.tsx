@@ -1,4 +1,3 @@
-import { updateProfile as updateProfileApi } from '@/src/services/profileService';
 import { useProfileStore } from '@/src/store/useProfileStore';
 import { useAppStore } from '@/src/store/useAppStore';
 import { useAuthStore } from '@/src/store/useAuthStore';
@@ -147,16 +146,12 @@ export default function ProfileScreen() {
       fats_goal: parseInt(fatsGoal, 10) || undefined,
     };
 
-    // LOCAL-FIRST: Update store immediately
+    // LOCAL-FIRST: Update store immediately → synced: false
+    // Shadow Sync will push changes to PUT /profile/goals in the background
     updateProfileStore(updates);
     setSnackbar({ visible: true, message: 'Perfil actualizado correctamente' });
     setEditingFicha(false);
     setEditingMetas(false);
-
-    // Background sync to server (silent)
-    updateProfileApi(updates).catch(() => {
-      // Swallow — shadow sync will handle retries
-    });
   };
 
   const handleLogout = () => {

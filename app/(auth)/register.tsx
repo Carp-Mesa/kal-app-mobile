@@ -1,13 +1,16 @@
 import { authService } from '@/src/services/authService';
 import { useAuthStore } from '@/src/store/useAuthStore';
 import { useShadowSyncStore } from '@/src/store/useShadowSyncStore';
+import { useProfileStore } from '@/src/store/useProfileStore';
 import { clearAllStores } from '@/src/store/clearAllStores';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   TouchableOpacity,
   View,
@@ -95,25 +98,42 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       const response = await authService.register(email, password);
-      if (response && response.access_token) {
+
+      // null = email confirmation required (Supabase returns no session)
+      if (response === null) {
+        setErrorMsg('Revisa tu correo para confirmar tu cuenta antes de continuar.');
+        shakeTrigger();
+        return;
+      }
+
+      if (response.access_token) {
         // 1. Wipe any residual data from a previous session
         clearAllStores();
 
-        // 2. Persist new session
+        // 2. Save name to profile store for instant display
+        useProfileStore.getState().updateProfile({ full_name: fullName.trim() });
+
+        // 3. Persist new session
         setTokens(response.access_token, response.refresh_token);
 
-        // 3. Navigate immediately
-        router.replace('/(tabs)');
+        // 4. Navigate to onboarding for initial setup
+        router.replace('/(onboarding)/screen');
 
-        // 4. Cold Start: fetch profile and any existing data from server
+        // 5. Cold Start: fetch profile and any existing data from server
         useShadowSyncStore.getState().fetchAndMerge(true);
-      } else {
-        setErrorMsg('Respuesta inválida del servidor.');
-        shakeTrigger();
       }
     } catch (error: any) {
-      console.log('Error en registro:', error?.response?.data || error.message);
-      setErrorMsg('Hubo un error al registrarse');
+      const msg = error?.message || error?.toString() || '';
+      console.error('❌ [Supabase Auth Error]:', msg);
+      if (msg.includes('already registered')) {
+        setErrorMsg('Este correo ya está registrado. Intenta iniciar sesión.');
+      } else if (msg.includes('No API key') || msg.includes('supabase')) {
+        setErrorMsg('Error de configuración. Verifica tu conexión.');
+      } else if (msg.includes('network') || msg.includes('Network') || msg.includes('fetch')) {
+        setErrorMsg('Error de red. Verifica tu conexión a internet.');
+      } else {
+        setErrorMsg(msg || 'Hubo un error al registrarse');
+      }
       shakeTrigger();
     } finally {
       setLoading(false);
@@ -123,117 +143,129 @@ export default function RegisterScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
     >
-      <View style={styles.inner}>
-        {/* ── Header ──────────────────────────────────────────────── */}
-        <View style={styles.header}>
-          <View style={styles.iconRing}>
-            <View style={styles.iconContainer}>
-              <MaterialCommunityIcons name="account-plus" size={44} color={CYBER_LIME} />
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.inner}>
+          {/* ── Header ──────────────────────────────────────────────── */}
+          <View style={styles.header}>
+            <View style={styles.iconRing}>
+              <View style={styles.iconContainer}>
+                <MaterialCommunityIcons name="account-plus" size={44} color={CYBER_LIME} />
+              </View>
             </View>
+            <Text style={styles.title}>NUEVO RECLUTA</Text>
+            <Text style={styles.subtitle}>Crea tu perfil y toma el control.</Text>
           </View>
-          <Text style={styles.title}>NUEVO RECLUTA</Text>
-          <Text style={styles.subtitle}>Crea tu perfil y toma el control.</Text>
-        </View>
 
-        {/* ── Card ────────────────────────────────────────────────── */}
-        <Animated.View style={[styles.card, shakeStyle]}>
-          <TextInput
-            label="Nombre Completo"
-            mode="outlined"
-            autoCapitalize="words"
-            value={fullName}
-            onChangeText={(t) => { setFullName(t); if (errorField === 'fullName') { setErrorField(null); setErrorMsg(''); } }}
-            style={styles.input}
-            outlineStyle={{ borderRadius: 12, borderColor: getInputBorderColor('fullName'), borderWidth: 1.5 }}
-            textColor="#FFFFFF"
-            theme={{ colors: { primary: CYBER_LIME, onSurfaceVariant: '#A0A0A0', outline: getInputBorderColor('fullName') } }}
-            left={<TextInput.Icon icon="account-outline" color="#A0A0A0" />}
-          />
+          {/* ── Card ────────────────────────────────────────────────── */}
+          <Animated.View style={[styles.card, shakeStyle]}>
+            <TextInput
+              label="Nombre Completo"
+              mode="outlined"
+              autoCapitalize="words"
+              value={fullName}
+              onChangeText={(t) => { setFullName(t); if (errorField === 'fullName') { setErrorField(null); setErrorMsg(''); } }}
+              style={styles.input}
+              outlineStyle={{ borderRadius: 12, borderColor: getInputBorderColor('fullName'), borderWidth: 1.5 }}
+              textColor="#FFFFFF"
+              theme={{ colors: { primary: CYBER_LIME, onSurfaceVariant: '#A0A0A0', outline: getInputBorderColor('fullName') } }}
+              left={<TextInput.Icon icon="account-outline" color="#A0A0A0" />}
+            />
 
-          <TextInput
-            label="Correo Electrónico"
-            mode="outlined"
-            autoCapitalize="none"
-            keyboardType="email-address"
-            value={email}
-            onChangeText={(t) => { setEmail(t); if (errorField === 'email') { setErrorField(null); setErrorMsg(''); } }}
-            style={styles.input}
-            outlineStyle={{ borderRadius: 12, borderColor: getInputBorderColor('email'), borderWidth: 1.5 }}
-            textColor="#FFFFFF"
-            theme={{ colors: { primary: CYBER_LIME, onSurfaceVariant: '#A0A0A0', outline: getInputBorderColor('email') } }}
-            left={<TextInput.Icon icon="email-outline" color="#A0A0A0" />}
-          />
+            <TextInput
+              label="Correo Electrónico"
+              mode="outlined"
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              value={email}
+              onChangeText={(t) => { setEmail(t); if (errorField === 'email') { setErrorField(null); setErrorMsg(''); } }}
+              style={styles.input}
+              outlineStyle={{ borderRadius: 12, borderColor: getInputBorderColor('email'), borderWidth: 1.5 }}
+              textColor="#FFFFFF"
+              theme={{ colors: { primary: CYBER_LIME, onSurfaceVariant: '#A0A0A0', outline: getInputBorderColor('email') } }}
+              left={<TextInput.Icon icon="email-outline" color="#A0A0A0" />}
+            />
 
-          <TextInput
-            label="Contraseña"
-            mode="outlined"
-            secureTextEntry={secure}
-            value={password}
-            onChangeText={(t) => { setPassword(t); if (errorField === 'password') { setErrorField(null); setErrorMsg(''); } }}
-            style={styles.input}
-            outlineStyle={{ borderRadius: 12, borderColor: getInputBorderColor('password'), borderWidth: 1.5 }}
-            textColor="#FFFFFF"
-            theme={{ colors: { primary: CYBER_LIME, onSurfaceVariant: '#A0A0A0', outline: getInputBorderColor('password') } }}
-            left={<TextInput.Icon icon="lock-outline" color="#A0A0A0" />}
-            right={
-              <TextInput.Icon
-                icon={secure ? 'eye-off-outline' : 'eye-outline'}
-                color="#A0A0A0"
-                onPress={() => setSecure(!secure)}
-              />
-            }
-          />
+            <TextInput
+              label="Contraseña"
+              mode="outlined"
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry={secure}
+              value={password}
+              onChangeText={(t) => { setPassword(t); if (errorField === 'password') { setErrorField(null); setErrorMsg(''); } }}
+              style={styles.input}
+              outlineStyle={{ borderRadius: 12, borderColor: getInputBorderColor('password'), borderWidth: 1.5 }}
+              textColor="#FFFFFF"
+              theme={{ colors: { primary: CYBER_LIME, onSurfaceVariant: '#A0A0A0', outline: getInputBorderColor('password') } }}
+              left={<TextInput.Icon icon="lock-outline" color="#A0A0A0" />}
+              right={
+                <TextInput.Icon
+                  icon={secure ? 'eye-off-outline' : 'eye-outline'}
+                  color="#A0A0A0"
+                  onPress={() => setSecure(!secure)}
+                />
+              }
+            />
 
-          <TextInput
-            label="Confirmar Contraseña"
-            mode="outlined"
-            secureTextEntry={secureConfirm}
-            value={confirmPassword}
-            onChangeText={(t) => { setConfirmPassword(t); if (errorField === 'confirmPassword') { setErrorField(null); setErrorMsg(''); } }}
-            style={[styles.input, { marginBottom: errorMsg ? 8 : 20 }]}
-            outlineStyle={{ borderRadius: 12, borderColor: getInputBorderColor('confirmPassword'), borderWidth: 1.5 }}
-            textColor="#FFFFFF"
-            theme={{ colors: { primary: CYBER_LIME, onSurfaceVariant: '#A0A0A0', outline: getInputBorderColor('confirmPassword') } }}
-            left={<TextInput.Icon icon="lock-check-outline" color="#A0A0A0" />}
-            right={
-              <TextInput.Icon
-                icon={secureConfirm ? 'eye-off-outline' : 'eye-outline'}
-                color="#A0A0A0"
-                onPress={() => setSecureConfirm(!secureConfirm)}
-              />
-            }
-          />
+            <TextInput
+              label="Confirmar Contraseña"
+              mode="outlined"
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry={secureConfirm}
+              value={confirmPassword}
+              onChangeText={(t) => { setConfirmPassword(t); if (errorField === 'confirmPassword') { setErrorField(null); setErrorMsg(''); } }}
+              style={[styles.input, { marginBottom: errorMsg ? 8 : 20 }]}
+              outlineStyle={{ borderRadius: 12, borderColor: getInputBorderColor('confirmPassword'), borderWidth: 1.5 }}
+              textColor="#FFFFFF"
+              theme={{ colors: { primary: CYBER_LIME, onSurfaceVariant: '#A0A0A0', outline: getInputBorderColor('confirmPassword') } }}
+              left={<TextInput.Icon icon="lock-check-outline" color="#A0A0A0" />}
+              right={
+                <TextInput.Icon
+                  icon={secureConfirm ? 'eye-off-outline' : 'eye-outline'}
+                  color="#A0A0A0"
+                  onPress={() => setSecureConfirm(!secureConfirm)}
+                />
+              }
+            />
 
-          {errorMsg ? (
-            <Text style={styles.errorText}>{errorMsg}</Text>
-          ) : null}
+            {errorMsg ? (
+              <Text style={styles.errorText}>{errorMsg}</Text>
+            ) : null}
 
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={handleRegister}
-            disabled={loading || !email || !password || !confirmPassword}
-            style={[styles.button, (!email || !password || !confirmPassword) && styles.buttonDisabled]}
-          >
-            {loading ? (
-              <MaterialCommunityIcons name="loading" size={22} color="#000000" />
-            ) : (
-              <Text style={styles.buttonText}>ACTIVAR ESTACIÓN</Text>
-            )}
-          </TouchableOpacity>
-        </Animated.View>
-
-        {/* ── Footer ──────────────────────────────────────────────── */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Ya tengo cuenta.</Text>
-          <Link href="/(auth)/login" asChild>
-            <TouchableOpacity>
-              <Text style={styles.footerLink}>Iniciar sesión</Text>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={handleRegister}
+              disabled={loading || !email || !password || !confirmPassword}
+              style={[styles.button, (!email || !password || !confirmPassword || loading) && styles.buttonDisabled]}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#000000" />
+              ) : (
+                <Text style={styles.buttonText}>ACTIVAR ESTACIÓN</Text>
+              )}
             </TouchableOpacity>
-          </Link>
+          </Animated.View>
+
+          {/* ── Footer ──────────────────────────────────────────────── */}
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>Ya tengo cuenta.</Text>
+            <Link href="/(auth)/login" asChild>
+              <TouchableOpacity>
+                <Text style={styles.footerLink}>Iniciar sesión</Text>
+              </TouchableOpacity>
+            </Link>
+          </View>
         </View>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -243,9 +275,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000000',
   },
-  inner: {
-    flex: 1,
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
+  },
+  inner: {
     paddingHorizontal: 24,
     paddingTop: 40,
     paddingBottom: 24,

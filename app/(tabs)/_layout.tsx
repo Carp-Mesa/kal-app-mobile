@@ -1,5 +1,6 @@
 import { useAppStore } from '@/src/store/useAppStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useIsFocused } from '@react-navigation/native';
 import { Tabs, router, useSegments } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -140,6 +141,7 @@ export default function TabLayout() {
   const setModalVisible = useAppStore(state => state.setModalVisible);
   const modalVisible = useAppStore(state => state.modalVisible);
   const [menuVisible, setMenuVisible] = useState(false);
+  const isFocused = useIsFocused();
 
   const isModalVisible = modalVisible !== 'none';
 
@@ -214,25 +216,29 @@ export default function TabLayout() {
         />
       </Tabs>
 
-      <ActionMenuOverlay
-        visible={menuVisible && !isModalVisible}
-        onClose={() => setMenuVisible(false)}
-        theme={theme}
-        setModalVisible={setModalVisible}
-      />
+      {isFocused && (
+        <>
+          <ActionMenuOverlay
+            visible={menuVisible && !isModalVisible}
+            onClose={() => setMenuVisible(false)}
+            theme={theme}
+            setModalVisible={setModalVisible}
+          />
 
-      <Portal>
-        <AbsoluteMainButton 
-          isMenuVisible={menuVisible && !isModalVisible}
-          isWorkoutNew={isWorkoutNew}
-          isModalVisible={isModalVisible}
-          onPress={() => {
-            if (!isModalVisible) {
-              setMenuVisible(!menuVisible);
-            }
-          }}
-        />
-      </Portal>
+          <Portal>
+            <AbsoluteMainButton
+              isMenuVisible={menuVisible && !isModalVisible}
+              isWorkoutNew={isWorkoutNew}
+              isModalVisible={isModalVisible}
+              onPress={() => {
+                if (!isModalVisible) {
+                  setMenuVisible(!menuVisible);
+                }
+              }}
+            />
+          </Portal>
+        </>
+      )}
     </>
   );
 }

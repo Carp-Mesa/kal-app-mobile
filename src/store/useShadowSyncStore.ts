@@ -4,7 +4,7 @@ import type { WorkoutLog } from './types';
 import { generateId } from './types';
 import { useAuthStore } from './useAuthStore';
 import { useNutritionStore } from './useNutritionStore';
-import { useProfileStore } from './useProfileStore';
+import { mapApiProfileToStore, useProfileStore } from './useProfileStore';
 import { useSleepStore } from './useSleepStore';
 import { useWaterStore } from './useWaterStore';
 import { useWorkoutStore } from './useWorkoutStore';
@@ -106,31 +106,36 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
     set({ isSyncing: true });
 
     try {
-      // ── 0. PROFILE GOALS (if locally modified) ────────────────────────────
+      // ── 0. UPDATE_PROFILE (consolidated — if locally modified) ─────────────
       const profileState = useProfileStore.getState();
       if (!profileState.synced && profileState.profile) {
         const p = profileState.profile;
         try {
-          await apiClient.put('/profile/goals', {
+          await apiClient.put('/profile', {
+            full_name: p.full_name,
+            age: p.age,
+            height: p.height,
+            current_weight: p.current_weight,
+            body_fat_percentage: p.body_fat_percentage,
+            weight_goal: p.weight_goal,
             calorie_goal: p.calorie_goal,
             protein_goal: p.protein_goal,
             carbs_goal: p.carbs_goal,
             fats_goal: p.fats_goal,
             water_goal: p.water_goal,
-            weight_goal: p.weight_goal,
-            full_name: p.full_name,
+            sleep_goal: p.sleep_goal,
           });
           useProfileStore.getState().markProfileSynced();
           set((s) => ({
-            debugLog: addLog({ timestamp: new Date().toISOString(), domain: 'profile', recordId: 'goals', status: 'success' }, s.debugLog),
+            debugLog: addLog({ timestamp: new Date().toISOString(), domain: 'profile', recordId: 'UPDATE_PROFILE', status: 'success' }, s.debugLog),
           }));
         } catch (err: any) {
           const status = err?.response?.status;
           if (status && isClientError(status)) {
             useProfileStore.getState().markProfileSynced();
-            set((s) => ({ debugLog: addLog({ timestamp: new Date().toISOString(), domain: 'profile', recordId: 'goals', status: 'client_error', message: `HTTP ${status}` }, s.debugLog) }));
+            set((s) => ({ debugLog: addLog({ timestamp: new Date().toISOString(), domain: 'profile', recordId: 'UPDATE_PROFILE', status: 'client_error', message: `HTTP ${status}` }, s.debugLog) }));
           } else {
-            set((s) => ({ debugLog: addLog({ timestamp: new Date().toISOString(), domain: 'profile', recordId: 'goals', status: 'network_error', message: err.message }, s.debugLog) }));
+            set((s) => ({ debugLog: addLog({ timestamp: new Date().toISOString(), domain: 'profile', recordId: 'UPDATE_PROFILE', status: 'network_error', message: err.message }, s.debugLog) }));
           }
         }
       }
@@ -292,7 +297,12 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
 
       // ── Profile (Cold Start → overwrite; Warm → keep local) ─────────────
       if (profileRes.status === 'fulfilled' && profileRes.value.data) {
-        useProfileStore.getState().setProfile(profileRes.value.data);
+        // Unwrap Axios wrapper: backend may return { data: { ...profile } }
+        const payload = profileRes.value.data?.data ?? profileRes.value.data;
+        const mappedProfile = mapApiProfileToStore(payload);
+        if (Object.keys(mappedProfile).length > 0) {
+          useProfileStore.getState().setProfile(mappedProfile);
+        }
       }
 
       // ── Workouts — Cold Start vs Warm Merge ──────────────────────────────

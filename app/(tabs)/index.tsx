@@ -9,6 +9,7 @@ import { useProfileStore } from '@/src/store/useProfileStore';
 import { useSleepStore } from '@/src/store/useSleepStore';
 import { useWaterStore } from '@/src/store/useWaterStore';
 import { useWorkoutStore } from '@/src/store/useWorkoutStore';
+import { capitalizeName } from '@/src/utils/formatting';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { memo, useMemo, useState } from 'react';
@@ -313,7 +314,7 @@ export default function DashboardScreen() {
   const sleptHours = Math.floor(totalSleepMins / 60);
   const sleptMins = totalSleepMins % 60;
 
-  const firstName = profile?.full_name?.split(' ')[0] || 'Campeón';
+  const firstName = capitalizeName(profile?.full_name).split(' ')[0] || 'Campeón';
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>

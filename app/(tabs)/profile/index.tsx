@@ -2,9 +2,11 @@ import { useProfileStore } from '@/src/store/useProfileStore';
 import { useAppStore } from '@/src/store/useAppStore';
 import { useAuthStore } from '@/src/store/useAuthStore';
 import { clearAllStores } from '@/src/store/clearAllStores';
+import { capitalizeName } from '@/src/utils/formatting';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -63,6 +65,7 @@ export default function ProfileScreen() {
   const theme = useTheme();
   const { themeMode, toggleTheme, resetOnboarding } = useAppStore();
   const profile = useProfileStore((state) => state.profile);
+  const _hasHydrated = useProfileStore((state) => state._hasHydrated);
   const updateProfileStore = useProfileStore((state) => state.updateProfile);
   const clearTokens = useAuthStore(state => state.clearTokens);
   const isInitialized = useRef(false);
@@ -94,7 +97,7 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (profile && !isInitialized.current) {
-      setFullName(profile.full_name ?? '');
+      setFullName(capitalizeName(profile.full_name) ?? '');
       setAge(profile.age?.toString() ?? '');
       setHeight(profile.height?.toString() ?? '');
       setCurrentWeight(profile.current_weight?.toString() ?? '');
@@ -131,23 +134,43 @@ export default function ProfileScreen() {
     }
   }, [calorieGoal, autoCalculateMacros]);
 
+  // ─── Robust numeric parsers: empty string → keep current store value ───────
+  const parseNumberOrKeep = (
+    input: string,
+    currentValue: number | undefined,
+    parser: (s: string) => number
+  ): number | undefined => {
+    const trimmed = input.trim();
+    if (trimmed === '') return currentValue;
+    const parsed = parser(trimmed);
+    return isNaN(parsed) ? currentValue : parsed;
+  };
+
+  const parseIntOrKeep = (input: string, currentValue?: number) =>
+    parseNumberOrKeep(input, currentValue, (s) => parseInt(s, 10));
+
+  const parseFloatOrKeep = (input: string, currentValue?: number) =>
+    parseNumberOrKeep(input, currentValue, parseFloat);
+
   const handleSave = () => {
+    const current = profile;
+
     const updates = {
-      full_name: fullName.trim() || undefined,
-      age: parseInt(age, 10) || undefined,
-      height: parseFloat(height) || undefined,
-      current_weight: parseFloat(currentWeight) || undefined,
-      body_fat_percentage: parseFloat(bodyFat) || undefined,
-      weight_goal: parseFloat(targetWeight) || undefined,
-      water_goal: parseInt(waterGoal, 10) || undefined,
-      calorie_goal: parseInt(calorieGoal, 10) || undefined,
-      protein_goal: parseInt(proteinGoal, 10) || undefined,
-      carbs_goal: parseInt(carbsGoal, 10) || undefined,
-      fats_goal: parseInt(fatsGoal, 10) || undefined,
+      full_name: fullName.trim() || current?.full_name,
+      age: parseIntOrKeep(age, current?.age),
+      height: parseFloatOrKeep(height, current?.height),
+      current_weight: parseFloatOrKeep(currentWeight, current?.current_weight),
+      body_fat_percentage: parseFloatOrKeep(bodyFat, current?.body_fat_percentage),
+      weight_goal: parseFloatOrKeep(targetWeight, current?.weight_goal),
+      water_goal: parseIntOrKeep(waterGoal, current?.water_goal),
+      calorie_goal: parseIntOrKeep(calorieGoal, current?.calorie_goal),
+      protein_goal: parseIntOrKeep(proteinGoal, current?.protein_goal),
+      carbs_goal: parseIntOrKeep(carbsGoal, current?.carbs_goal),
+      fats_goal: parseIntOrKeep(fatsGoal, current?.fats_goal),
     };
 
     // LOCAL-FIRST: Update store immediately → synced: false
-    // Shadow Sync will push changes to PUT /profile/goals in the background
+    // Shadow Sync will push changes to PUT /profile in the background
     updateProfileStore(updates);
     setSnackbar({ visible: true, message: 'Perfil actualizado correctamente' });
     setEditingFicha(false);
@@ -170,7 +193,13 @@ export default function ProfileScreen() {
     marginBottom: 20,
   });
 
-
+  if (!_hasHydrated) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.colors.background, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -280,7 +309,7 @@ export default function ProfileScreen() {
               Metas Físicas
             </Text>
 
-            <View style={{ gap: 16, marginBottom: 24 }}>
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
               <TextInput
                 mode="outlined"
                 label="Peso Objetivo (kg)"
@@ -289,7 +318,7 @@ export default function ProfileScreen() {
                 keyboardType="numeric"
                 editable={editingMetas}
                 left={<TextInput.Icon icon="bullseye-arrow" color={editingMetas ? theme.colors.onSurfaceVariant : 'rgba(255,255,255,0.2)'} />}
-                style={{ backgroundColor: editingMetas ? 'transparent' : 'rgba(255,255,255,0.02)' }}
+                style={{ flex: 1, backgroundColor: editingMetas ? 'transparent' : 'rgba(255,255,255,0.02)' }}
                 outlineStyle={{ borderRadius: 12, borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1.5 }}
                 textColor={editingMetas ? theme.colors.onSurface : theme.colors.onSurfaceVariant}
                 theme={{ colors: { primary: theme.colors.primary } }}
@@ -302,7 +331,7 @@ export default function ProfileScreen() {
                 keyboardType="numeric"
                 editable={editingMetas}
                 left={<TextInput.Icon icon="water-outline" color={editingMetas ? theme.colors.onSurfaceVariant : 'rgba(255,255,255,0.2)'} />}
-                style={{ backgroundColor: editingMetas ? 'transparent' : 'rgba(255,255,255,0.02)' }}
+                style={{ flex: 1, backgroundColor: editingMetas ? 'transparent' : 'rgba(255,255,255,0.02)' }}
                 outlineStyle={{ borderRadius: 12, borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1.5 }}
                 textColor={editingMetas ? theme.colors.onSurface : theme.colors.onSurfaceVariant}
                 theme={{ colors: { primary: theme.colors.primary } }}

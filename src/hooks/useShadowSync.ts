@@ -18,16 +18,16 @@ import { useAuthStore } from '../store/useAuthStore';
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export function useShadowSync() {
-  const syncAll = useShadowSyncStore((s) => s.syncAll);
-  const fetchAndMerge = useShadowSyncStore((s) => s.fetchAndMerge);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
   useEffect(() => {
+    const { syncAll, fetchAndMerge } = useShadowSyncStore.getState();
+
     // ── 1. Network Connectivity Listener ──────────────────────────────────
     const unsubscribeNetInfo = NetInfo.addEventListener((state) => {
       if (state.isConnected && state.isInternetReachable !== false) {
         if (!useAuthStore.getState().accessToken) return;
-        syncAll();
+        syncAll().then(() => fetchAndMerge());
       }
     });
 
@@ -50,11 +50,12 @@ export function useShadowSync() {
     const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
 
     // ── 3. Initial sync on mount (2s delay to let stores hydrate) ────────
+    //    Push unsynced local data THEN pull server data to populate dashboard.
     const initialTimeout = setTimeout(() => {
       if (!useAuthStore.getState().accessToken) return;
       NetInfo.fetch().then((state) => {
         if (state.isConnected) {
-          syncAll();
+          syncAll().then(() => fetchAndMerge());
         }
       });
     }, 2000);
@@ -64,5 +65,5 @@ export function useShadowSync() {
       appStateSubscription.remove();
       clearTimeout(initialTimeout);
     };
-  }, [syncAll, fetchAndMerge]);
+  }, []);
 }

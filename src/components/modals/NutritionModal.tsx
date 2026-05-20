@@ -1,7 +1,7 @@
 import { useLogNutrition } from '@/src/hooks/useLogs';
 import { useShake } from '@/src/hooks/useShake';
 import { useAppStore } from '@/src/store/useAppStore';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { HelperText, Switch, Text, TextInput } from 'react-native-paper';
 import Animated from 'react-native-reanimated';
@@ -83,7 +83,7 @@ export const NutritionModal: React.FC<NutritionModalProps> = ({ visible, onDismi
     setModalValidationError(isInvalid);
   }, [isInvalid, setModalValidationError]);
 
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
     if (nutritionMut.isPending) return;
     const cal = calNum;
     if (cal <= 0) {
@@ -127,21 +127,24 @@ export const NutritionModal: React.FC<NutritionModalProps> = ({ visible, onDismi
       },
       onError: () => setError('Error al registrar la comida.'),
     });
-  };
+  }, [nutritionMut, calNum, name, autoCalc, finalMacros, shake, onSuccess, onDismiss]);
+
+  const lastTriggerRef = useRef(0);
 
   useEffect(() => {
     if (visible) {
       setError('');
       setShakingField(null);
+      lastTriggerRef.current = triggerSaveModal;
     }
   }, [visible]);
 
   useEffect(() => {
-    if (visible && triggerSaveModal > 0) {
+    if (visible && triggerSaveModal > lastTriggerRef.current) {
+      lastTriggerRef.current = triggerSaveModal;
       handleSave();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [triggerSaveModal]);
+  }, [triggerSaveModal, visible, handleSave]);
 
   const getOutlineColor = (field: 'name' | 'calories' | 'macros') => {
     if (error && shakingField === field) return ERROR_RED;

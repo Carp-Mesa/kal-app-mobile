@@ -1,10 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { generateId, getLocalDateString, WorkoutLog, ExerciseLog } from './types';
+import { generateId, getLocalDateString, isLocalDate, WorkoutLog, ExerciseLog } from './types';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Workout Store — Local-First
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Architecture rules:
+//   1. NEVER mutate state — always create new arrays via spread.
+//   2. ALWAYS coerce numeric fields via Number() at write time.
+//   3. Sync notification is handled by the caller (new.tsx) to
+//      avoid circular dependencies with useShadowSyncStore.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 interface WorkoutState {
@@ -60,12 +67,14 @@ export const useWorkoutStore = create<WorkoutState>()(
           id: generateId(),
           name: data.name,
           date: data.date,
-          duration_mins: data.duration_mins,
+          duration_mins: Number(data.duration_mins) || 0,
           notes: data.notes,
           exercises,
           synced: false,
           updated_at: now,
         };
+
+        // 1. Immutable update: new array reference → guaranteed re-render
         set((state) => ({ logs: [entry, ...state.logs] }));
       },
 
@@ -92,7 +101,11 @@ export const useWorkoutStore = create<WorkoutState>()(
             if (!local) {
               mergedMap.set(remote.id, { ...remote, synced: true });
             } else if (local.synced) {
-              mergedMap.set(remote.id, { ...remote, synced: true });
+              const localUpdated = local.updated_at || '';
+              const remoteUpdated = remote.updated_at || '';
+              if (remoteUpdated > localUpdated) {
+                mergedMap.set(remote.id, { ...remote, synced: true });
+              }
             }
           }
 

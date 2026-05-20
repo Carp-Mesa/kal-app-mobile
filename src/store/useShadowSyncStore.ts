@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import apiClient from '../services/apiClient';
-import type { WorkoutLog } from './types';
-import { generateId } from './types';
+import type { NutritionLog, SleepLog, WaterLog, WorkoutLog } from './types';
+import { generateId, getLocalDateString } from './types';
 import { useAuthStore } from './useAuthStore';
 import { useNutritionStore } from './useNutritionStore';
 import { mapApiProfileToStore, useProfileStore } from './useProfileStore';
@@ -34,6 +34,7 @@ interface SyncLogEntry {
 interface ShadowSyncState {
   isSyncing: boolean;
   isFetching: boolean;
+  pendingResync: boolean;
   lastSyncAt: string | null;
   lastFetchAt: string | null;
   debugLog: SyncLogEntry[];
@@ -41,6 +42,7 @@ interface ShadowSyncState {
   // ── Core ───────────────────────────────────────────────────────────────────
   syncAll: () => Promise<void>;
   fetchAndMerge: (force?: boolean) => Promise<void>;
+  enqueueSync: () => void;
 
   // ── Debug ──────────────────────────────────────────────────────────────────
   getDebugLog: () => SyncLogEntry[];
@@ -71,9 +73,46 @@ function normalizeWorkout(item: any): WorkoutLog {
     id: item.id,
     name: item.name,
     date: item.date,
-    duration_mins: item.duration_mins || 0,
+    duration_mins: Number(item.duration_mins) || 0,
     notes: item.notes,
     exercises,
+    synced: true,
+    updated_at: item.updated_at || new Date().toISOString(),
+  };
+}
+
+function normalizeWater(item: any): WaterLog {
+  return {
+    id: item.id,
+    amount_ml: Number(item.amount_ml) || 0,
+    created_at: item.created_at || new Date().toISOString(),
+    synced: true,
+    updated_at: item.updated_at || new Date().toISOString(),
+  };
+}
+
+function normalizeNutrition(item: any): NutritionLog {
+  return {
+    id: item.id,
+    meal_name: item.meal_name || '',
+    calories: Number(item.calories) || 0,
+    protein: Number(item.protein) || 0,
+    carbs: Number(item.carbs) || 0,
+    fats: Number(item.fats) || 0,
+    is_cheat_meal: item.is_cheat_meal ?? false,
+    created_at: item.created_at || new Date().toISOString(),
+    synced: true,
+    updated_at: item.updated_at || new Date().toISOString(),
+  };
+}
+
+function normalizeSleep(item: any): SleepLog {
+  return {
+    id: item.id,
+    start_time: item.start_time,
+    end_time: item.end_time,
+    date: item.date,
+    quality_score: Number(item.quality_score) || 3,
     synced: true,
     updated_at: item.updated_at || new Date().toISOString(),
   };
@@ -84,12 +123,34 @@ function normalizeWorkout(item: any): WorkoutLog {
 export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
   isSyncing: false,
   isFetching: false,
+  pendingResync: false,
   lastSyncAt: null,
   lastFetchAt: null,
   debugLog: [],
 
   getDebugLog: () => get().debugLog,
   clearDebugLog: () => set({ debugLog: [] }),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // enqueueSync — Immediately push unsynced data to the server
+  // ═══════════════════════════════════════════════════════════════════════════
+  //
+  // Called from store mutations (addWater, addNutrition, etc.) right AFTER
+  // the local state update via set(). This bridges the gap between local-only
+  // writes and the sync engine, ensuring server push happens without waiting
+  // for a lifecycle event (network change, app foreground, etc.).
+  //
+  // If a sync is already running, we set pendingResync=true and the running
+  // sync will re-run itself upon completion.
+  // ═══════════════════════════════════════════════════════════════════════════
+  enqueueSync: () => {
+    if (!useAuthStore.getState().accessToken) return;
+    if (!get().isSyncing) {
+      get().syncAll();
+    } else {
+      set({ pendingResync: true });
+    }
+  },
 
   // ═══════════════════════════════════════════════════════════════════════════
   // syncAll — Pushes all unsynced local records to the server sequentially
@@ -257,7 +318,11 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
     } catch (err) {
       console.error('[ShadowSync] syncAll unexpected error:', err);
     } finally {
-      set({ isSyncing: false });
+      const shouldResync = get().pendingResync;
+      set({ isSyncing: false, pendingResync: false });
+      if (shouldResync) {
+        get().syncAll();
+      }
     }
   },
 
@@ -289,27 +354,71 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
     set({ isFetching: true });
 
     try {
-      // ── Fetch profile + workout history in parallel ──────────────────────
-      const [profileRes, workoutsRes] = await Promise.allSettled([
+      // ── Fetch profile + workout history + today's logs in parallel ──────
+      const today = getLocalDateString();
+      const [profileRes, workoutsRes, waterRes, nutritionRes, sleepRes] = await Promise.allSettled([
         apiClient.get('/profile'),
         apiClient.get('/workout/history?limit=100&offset=0'),
+        apiClient.get(`/water?date=${today}`),
+        apiClient.get(`/nutrition?date=${today}`),
+        apiClient.get(`/sleep?date=${today}`),
       ]);
 
       // ── Profile (Cold Start → overwrite; Warm → keep local) ─────────────
       if (profileRes.status === 'fulfilled' && profileRes.value.data) {
-        // Unwrap Axios wrapper: backend may return { data: { ...profile } }
         const payload = profileRes.value.data?.data ?? profileRes.value.data;
         const mappedProfile = mapApiProfileToStore(payload);
         if (Object.keys(mappedProfile).length > 0) {
           useProfileStore.getState().setProfile(mappedProfile);
         }
+      } else if (profileRes.status === 'rejected') {
+        console.warn('[ShadowSync] fetchAndMerge: profile REJECTED', profileRes.reason?.message);
       }
 
       // ── Workouts — merge via idempotent store method ────────────────────────
       if (workoutsRes.status === 'fulfilled') {
-        const serverItems: any[] = workoutsRes.value.data?.data ?? [];
+        const raw = workoutsRes.value.data;
+        const serverItems: any[] = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
         const serverWorkouts: WorkoutLog[] = serverItems.map(normalizeWorkout);
         useWorkoutStore.getState().mergeFromServer(serverWorkouts);
+      } else if (workoutsRes.status === 'rejected') {
+        console.warn('[ShadowSync] fetchAndMerge: workouts REJECTED', workoutsRes.reason?.message);
+      }
+
+      // ── Water — merge today's logs ──────────────────────────────────────────
+      if (waterRes.status === 'fulfilled') {
+        const raw = waterRes.value.data;
+        const serverItems: any[] = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
+        if (serverItems.length > 0) {
+          const serverWater: WaterLog[] = serverItems.map(normalizeWater);
+          useWaterStore.getState().mergeFromServer(serverWater);
+        }
+      } else if (waterRes.status === 'rejected') {
+        console.warn('[ShadowSync] fetchAndMerge: water REJECTED', waterRes.reason?.message);
+      }
+
+      // ── Nutrition — merge today's logs ──────────────────────────────────────
+      if (nutritionRes.status === 'fulfilled') {
+        const raw = nutritionRes.value.data;
+        const serverItems: any[] = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
+        if (serverItems.length > 0) {
+          const serverNutrition: NutritionLog[] = serverItems.map(normalizeNutrition);
+          useNutritionStore.getState().mergeFromServer(serverNutrition);
+        }
+      } else if (nutritionRes.status === 'rejected') {
+        console.warn('[ShadowSync] fetchAndMerge: nutrition REJECTED', nutritionRes.reason?.message);
+      }
+
+      // ── Sleep — merge today's logs ──────────────────────────────────────────
+      if (sleepRes.status === 'fulfilled') {
+        const raw = sleepRes.value.data;
+        const serverItems: any[] = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
+        if (serverItems.length > 0) {
+          const serverSleep: SleepLog[] = serverItems.map(normalizeSleep);
+          useSleepStore.getState().mergeFromServer(serverSleep);
+        }
+      } else if (sleepRes.status === 'rejected') {
+        console.warn('[ShadowSync] fetchAndMerge: sleep REJECTED', sleepRes.reason?.message);
       }
 
       set({ lastFetchAt: new Date().toISOString() });

@@ -2,7 +2,7 @@ import { useLogWater } from '@/src/hooks/useLogs';
 import { useShake } from '@/src/hooks/useShake';
 import { useAppStore } from '@/src/store/useAppStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { HelperText, Text, TextInput } from 'react-native-paper';
 import Animated from 'react-native-reanimated';
@@ -37,7 +37,7 @@ export const WaterModal: React.FC<WaterModalProps> = ({ visible, onDismiss, wate
     setModalValidationError(isInvalid);
   }, [isInvalid, setModalValidationError]);
 
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
     if (waterMut.isPending) return;
     const val = parsedAmount;
     if (val <= 0) {
@@ -54,20 +54,23 @@ export const WaterModal: React.FC<WaterModalProps> = ({ visible, onDismiss, wate
       },
       onError: () => setError('Error al registrar el agua.'),
     });
-  };
+  }, [waterMut, parsedAmount, shake, onSuccess, onDismiss]);
+
+  const lastTriggerRef = useRef(0);
 
   useEffect(() => {
     if (visible) {
       setError('');
+      lastTriggerRef.current = triggerSaveModal;
     }
   }, [visible]);
 
   useEffect(() => {
-    if (visible && triggerSaveModal > 0) {
+    if (visible && triggerSaveModal > lastTriggerRef.current) {
+      lastTriggerRef.current = triggerSaveModal;
       handleSave();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [triggerSaveModal]);
+  }, [triggerSaveModal, visible, handleSave]);
 
   const quickAdd = (ml: number) => {
     setAmount(String(ml));

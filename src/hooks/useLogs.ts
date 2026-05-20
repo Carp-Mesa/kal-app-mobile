@@ -1,6 +1,7 @@
 import { useWaterStore } from '../store/useWaterStore';
 import { useNutritionStore } from '../store/useNutritionStore';
 import { useSleepStore } from '../store/useSleepStore';
+import { useShadowSyncStore } from '../store/useShadowSyncStore';
 import { useCallback } from 'react';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -9,12 +10,20 @@ import { useCallback } from 'react';
 //
 // These hooks write to Zustand stores SYNCHRONOUSLY.
 // The UI reacts instantly — no awaiting HTTP, no isPending states.
-// The Shadow Sync Engine will push the data to the server in the background.
+//
+// IMPORTANT: After each local write, we call enqueueSync() to notify
+// the Shadow Sync Engine. This is done HERE (hooks layer) rather than
+// inside the stores to avoid circular dependencies:
+//   useShadowSyncStore → apiClient → useWaterStore → useShadowSyncStore  (CYCLE!)
+//
+// By keeping the sync notification in the hooks, the stores have zero
+// knowledge of the sync engine, breaking the require cycle.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
  * Returns a synchronous function to log water intake.
  * Writes directly to the local store — instant UI feedback.
+ * Notifies Shadow Sync to push to the server in the background.
  */
 export const useLogWater = () => {
   const addWater = useWaterStore((state) => state.addWater);
@@ -23,6 +32,7 @@ export const useLogWater = () => {
     (amount_ml: number, callbacks?: { onSuccess?: () => void; onError?: () => void }) => {
       try {
         addWater(amount_ml);
+        queueMicrotask(() => useShadowSyncStore.getState().enqueueSync());
         callbacks?.onSuccess?.();
       } catch {
         callbacks?.onError?.();
@@ -37,6 +47,7 @@ export const useLogWater = () => {
 /**
  * Returns a synchronous function to log a nutrition entry.
  * Writes directly to the local store — instant UI feedback.
+ * Notifies Shadow Sync to push to the server in the background.
  */
 export const useLogNutrition = () => {
   const addNutrition = useNutritionStore((state) => state.addNutrition);
@@ -55,6 +66,7 @@ export const useLogNutrition = () => {
     ) => {
       try {
         addNutrition(data);
+        queueMicrotask(() => useShadowSyncStore.getState().enqueueSync());
         callbacks?.onSuccess?.();
       } catch {
         callbacks?.onError?.();
@@ -69,6 +81,7 @@ export const useLogNutrition = () => {
 /**
  * Returns a synchronous function to log a sleep entry.
  * Writes directly to the local store — instant UI feedback.
+ * Notifies Shadow Sync to push to the server in the background.
  */
 export const useLogSleep = () => {
   const addSleep = useSleepStore((state) => state.addSleep);
@@ -85,6 +98,7 @@ export const useLogSleep = () => {
     ) => {
       try {
         addSleep(data);
+        queueMicrotask(() => useShadowSyncStore.getState().enqueueSync());
         callbacks?.onSuccess?.();
       } catch {
         callbacks?.onError?.();

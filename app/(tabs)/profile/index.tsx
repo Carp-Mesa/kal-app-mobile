@@ -1,7 +1,7 @@
-import { useProfileStore } from '@/src/store/useProfileStore';
+import { clearAllStores } from '@/src/store/clearAllStores';
 import { useAppStore } from '@/src/store/useAppStore';
 import { useAuthStore } from '@/src/store/useAuthStore';
-import { clearAllStores } from '@/src/store/clearAllStores';
+import { useProfileStore } from '@/src/store/useProfileStore';
 import { capitalizeName } from '@/src/utils/formatting';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -312,12 +312,18 @@ export default function ProfileScreen() {
             <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
               <TextInput
                 mode="outlined"
-                label="Peso Objetivo (kg)"
+                label="Meta de Peso"
                 value={targetWeight}
                 onChangeText={setTargetWeight}
                 keyboardType="numeric"
                 editable={editingMetas}
                 left={<TextInput.Icon icon="bullseye-arrow" color={editingMetas ? theme.colors.onSurfaceVariant : 'rgba(255,255,255,0.2)'} />}
+                right={
+                  <TextInput.Affix 
+                    text="kg" 
+                    textStyle={{ color: editingMetas ? theme.colors.onSurfaceVariant : 'rgba(255,255,255,0.4)' }} 
+                  />
+                }
                 style={{ flex: 1, backgroundColor: editingMetas ? 'transparent' : 'rgba(255,255,255,0.02)' }}
                 outlineStyle={{ borderRadius: 12, borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1.5 }}
                 textColor={editingMetas ? theme.colors.onSurface : theme.colors.onSurfaceVariant}
@@ -325,12 +331,18 @@ export default function ProfileScreen() {
               />
               <TextInput
                 mode="outlined"
-                label="Objetivo de Agua (ml)"
+                label="Meta de Agua"
                 value={waterGoal}
                 onChangeText={setWaterGoal}
                 keyboardType="numeric"
                 editable={editingMetas}
                 left={<TextInput.Icon icon="water-outline" color={editingMetas ? theme.colors.onSurfaceVariant : 'rgba(255,255,255,0.2)'} />}
+                right={
+                  <TextInput.Affix 
+                    text="ml" 
+                    textStyle={{ color: editingMetas ? theme.colors.onSurfaceVariant : 'rgba(255,255,255,0.4)' }} 
+                  />
+                }
                 style={{ flex: 1, backgroundColor: editingMetas ? 'transparent' : 'rgba(255,255,255,0.02)' }}
                 outlineStyle={{ borderRadius: 12, borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1.5 }}
                 textColor={editingMetas ? theme.colors.onSurface : theme.colors.onSurfaceVariant}

@@ -1,4 +1,5 @@
 import { WheelPicker } from '@/src/components/WheelPicker';
+import { getLocalDateString } from '@/src/store/types';
 import { useLogSleep } from '@/src/hooks/useLogs';
 import { useShake } from '@/src/hooks/useShake';
 import { useAppStore } from '@/src/store/useAppStore';
@@ -212,6 +213,14 @@ export const SleepModal: React.FC<SleepModalProps> = ({ visible, onDismiss, onSu
 
     setError('');
 
+    // Compute start and end Date objects from the picker values.
+    // The user picks clock times (e.g., 10PM start → 6AM end).
+    // We anchor both to the CURRENT date, then shift startDate back one day
+    // if start >= end (meaning the sleep span crossed midnight).
+    //
+    // CRITICAL: use getLocalDateString() for the `date` field to avoid UTC
+    // timezone shifts that corrupt the date. The `date` represents the LOCAL
+    // calendar date the sleep belongs to (the wake-up date).
     const now = new Date();
     const startH = Math.floor(startMinutes / 60);
     const startM = startMinutes % 60;
@@ -227,7 +236,7 @@ export const SleepModal: React.FC<SleepModalProps> = ({ visible, onDismiss, onSu
     sleepMut.mutate({
       start_time: startDate.toISOString(),
       end_time: endDate.toISOString(),
-      date: endDate.toISOString().split('T')[0],
+      date: getLocalDateString(endDate),
       quality_score: qualityScore,
     }, {
       onSuccess: () => {

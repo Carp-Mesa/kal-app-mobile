@@ -1,10 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { generateId, getLocalDateString, SleepLog } from './types';
+import { generateId, getLocalDateString, isLocalDate, SleepLog } from './types';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Sleep Store — Local-First
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Architecture rules:
+//   1. NEVER mutate state — always create new arrays via spread.
+//   2. ALWAYS coerce numeric fields via Number() at write time.
+//   3. Sync notification is handled by the hooks layer (useLogs.ts) to
+//      avoid circular dependencies with useShadowSyncStore.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export interface SleepDuration {
@@ -66,10 +73,11 @@ export const useSleepStore = create<SleepState>()(
           start_time: data.start_time,
           end_time: data.end_time,
           date: data.date,
-          quality_score: data.quality_score,
+          quality_score: Number(data.quality_score) || 3,
           synced: false,
           updated_at: now,
         };
+
         set((state) => ({ logs: [entry, ...state.logs] }));
       },
 
@@ -96,7 +104,11 @@ export const useSleepStore = create<SleepState>()(
             if (!local) {
               mergedMap.set(remote.id, { ...remote, synced: true });
             } else if (local.synced) {
-              mergedMap.set(remote.id, { ...remote, synced: true });
+              const localUpdated = local.updated_at || '';
+              const remoteUpdated = remote.updated_at || '';
+              if (remoteUpdated > localUpdated) {
+                mergedMap.set(remote.id, { ...remote, synced: true });
+              }
             }
           }
 
@@ -106,7 +118,7 @@ export const useSleepStore = create<SleepState>()(
 
       getTodaySleep: () => {
         const today = getLocalDateString();
-        const todayLog = get().logs.find((l) => l.date === today);
+        const todayLog = get().logs.find((l) => l.date === today || isLocalDate(l.start_time, today));
         if (!todayLog) return null;
         return {
           ...todayLog,

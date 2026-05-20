@@ -2,7 +2,7 @@ import { FadeIn } from '@/src/components/FadeIn';
 import { NutritionModal } from '@/src/components/modals/NutritionModal';
 import { SleepModal } from '@/src/components/modals/SleepModal';
 import { WaterModal } from '@/src/components/modals/WaterModal';
-import { getLocalDateString } from '@/src/store/types';
+import { getLocalDateString, isLocalDate } from '@/src/store/types';
 import { useAppStore } from '@/src/store/useAppStore';
 import { useNutritionStore } from '@/src/store/useNutritionStore';
 import { useProfileStore } from '@/src/store/useProfileStore';
@@ -262,20 +262,20 @@ export default function DashboardScreen() {
   const today = getLocalDateString();
 
   const waterTotal = useMemo(
-    () => waterLogs.filter((l) => l.created_at.startsWith(today)).reduce((s, l) => s + l.amount_ml, 0),
+    () => waterLogs.filter((l) => isLocalDate(l.created_at, today)).reduce((s, l) => s + (Number(l.amount_ml) || 0), 0),
     [waterLogs, today],
   );
 
   const nutritionTotals = useMemo(
     () =>
       nutritionLogs
-        .filter((l) => l.created_at.startsWith(today))
+        .filter((l) => isLocalDate(l.created_at, today))
         .reduce(
           (acc, l) => ({
-            calories: acc.calories + l.calories,
-            protein: acc.protein + l.protein,
-            carbs: acc.carbs + l.carbs,
-            fats: acc.fats + l.fats,
+            calories: acc.calories + (Number(l.calories) || 0),
+            protein: acc.protein + (Number(l.protein) || 0),
+            carbs: acc.carbs + (Number(l.carbs) || 0),
+            fats: acc.fats + (Number(l.fats) || 0),
           }),
           { calories: 0, protein: 0, carbs: 0, fats: 0 },
         ),
@@ -283,7 +283,7 @@ export default function DashboardScreen() {
   );
 
   const todaySleep = useMemo(() => {
-    const log = sleepLogs.find((l) => l.date === today);
+    const log = sleepLogs.find((l) => l.date === today || isLocalDate(l.start_time, today));
     if (!log) return null;
     const diffMs = new Date(log.end_time).getTime() - new Date(log.start_time).getTime();
     const total_minutes = diffMs > 0 ? Math.round(diffMs / 60000) : 0;
@@ -308,7 +308,7 @@ export default function DashboardScreen() {
   const workoutCount = todayWorkouts.length;
   const workoutLabel = workoutCount > 0 ? `${workoutCount} Rutinas` : 'Pendiente';
   const workoutStatus = workoutCount > 0 ? 'Completado' : 'Pendiente';
-  const workoutDuration = todayWorkouts.reduce((sum, w) => sum + (w.duration_mins || 0), 0);
+  const workoutDuration = todayWorkouts.reduce((sum, w) => sum + (Number(w.duration_mins) || 0), 0);
 
   const totalSleepMins = todaySleep?.duration?.total_minutes || 0;
   const sleptHours = Math.floor(totalSleepMins / 60);

@@ -57,11 +57,11 @@ export default function LoginScreen() {
 
   const isValidEmail = (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
 
-  const onAuthSuccess = (accessToken: string, refreshToken: string) => {
+  const onAuthSuccess = async (accessToken: string, refreshToken: string) => {
     clearAllStores();
     setTokens(accessToken, refreshToken);
+    await useShadowSyncStore.getState().fetchAndMerge(true);
     router.replace('/(tabs)');
-    useShadowSyncStore.getState().fetchAndMerge(true);
   };
 
   const handleLogin = async () => {

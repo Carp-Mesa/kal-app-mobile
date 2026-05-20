@@ -2,6 +2,7 @@ import { useExerciseSuggestions } from '@/src/hooks/useExerciseSuggestions';
 import { useShake } from '@/src/hooks/useShake';
 import { ExercisePayload, SetEntry } from '@/src/services/workoutService';
 import { useAppStore } from '@/src/store/useAppStore';
+import { useShadowSyncStore } from '@/src/store/useShadowSyncStore';
 import { useWorkoutStore } from '@/src/store/useWorkoutStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -617,6 +618,8 @@ export default function NewWorkoutScreen() {
       duration_mins: Number(form.duration_mins) || 0,
       exercises: exercisesPayload,
     });
+
+    queueMicrotask(() => useShadowSyncStore.getState().enqueueSync());
 
     // Instant navigation — no HTTP await
     router.back();

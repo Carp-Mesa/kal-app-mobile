@@ -1,10 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { generateId, getLocalDateString, NutritionLog } from './types';
+import { generateId, getLocalDateString, isLocalDate, NutritionLog } from './types';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Nutrition Store — Local-First
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Architecture rules:
+//   1. NEVER mutate state — always create new arrays via spread.
+//   2. ALWAYS coerce numeric fields via Number() at write time.
+//   3. Sync notification is handled by the hooks layer (useLogs.ts) to
+//      avoid circular dependencies with useShadowSyncStore.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export interface DailyNutritionTotals {
@@ -55,15 +62,16 @@ export const useNutritionStore = create<NutritionState>()(
         const entry: NutritionLog = {
           id: generateId(),
           meal_name: data.meal_name,
-          calories: data.calories,
-          protein: data.protein,
-          carbs: data.carbs,
-          fats: data.fats,
+          calories: Number(data.calories) || 0,
+          protein: Number(data.protein) || 0,
+          carbs: Number(data.carbs) || 0,
+          fats: Number(data.fats) || 0,
           is_cheat_meal: data.is_cheat_meal ?? false,
           created_at: now,
           synced: false,
           updated_at: now,
         };
+
         set((state) => ({ logs: [entry, ...state.logs] }));
       },
 
@@ -83,32 +91,34 @@ export const useNutritionStore = create<NutritionState>()(
 
       mergeFromServer: (serverLogs) => {
         set((state) => {
-          const localById = new Map(state.logs.map((l) => [l.id, l]));
-          const merged = [...state.logs];
+          const mergedMap = new Map(state.logs.map((l) => [l.id, l]));
 
           for (const remote of serverLogs) {
-            const local = localById.get(remote.id);
+            const local = mergedMap.get(remote.id);
             if (!local) {
-              merged.push({ ...remote, synced: true });
+              mergedMap.set(remote.id, { ...remote, synced: true });
             } else if (local.synced) {
-              const idx = merged.findIndex((l) => l.id === remote.id);
-              if (idx !== -1) merged[idx] = { ...remote, synced: true };
+              const localUpdated = local.updated_at || '';
+              const remoteUpdated = remote.updated_at || '';
+              if (remoteUpdated > localUpdated) {
+                mergedMap.set(remote.id, { ...remote, synced: true });
+              }
             }
           }
 
-          return { logs: merged };
+          return { logs: Array.from(mergedMap.values()) };
         });
       },
 
       getTodayTotals: () => {
         const today = getLocalDateString();
-        const todayLogs = get().logs.filter((l) => l.created_at.startsWith(today));
+        const todayLogs = get().logs.filter((l) => isLocalDate(l.created_at, today));
         return todayLogs.reduce<DailyNutritionTotals>(
           (acc, l) => ({
-            calories: acc.calories + l.calories,
-            protein: acc.protein + l.protein,
-            carbs: acc.carbs + l.carbs,
-            fats: acc.fats + l.fats,
+            calories: acc.calories + (Number(l.calories) || 0),
+            protein: acc.protein + (Number(l.protein) || 0),
+            carbs: acc.carbs + (Number(l.carbs) || 0),
+            fats: acc.fats + (Number(l.fats) || 0),
           }),
           { calories: 0, protein: 0, carbs: 0, fats: 0 },
         );
@@ -116,7 +126,7 @@ export const useNutritionStore = create<NutritionState>()(
 
       getTodayLogs: () => {
         const today = getLocalDateString();
-        return get().logs.filter((l) => l.created_at.startsWith(today));
+        return get().logs.filter((l) => isLocalDate(l.created_at, today));
       },
     }),
     {

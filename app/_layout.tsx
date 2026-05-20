@@ -133,7 +133,7 @@ function RootLayoutNav() {
   // ── Global deep link listener for OAuth callbacks ──────────────────────
   // Handles URLs like: gainsstation://auth/callback#access_token=...&refresh_token=...
   useEffect(() => {
-    const handleDeepLink = (event: { url: string }) => {
+    const handleDeepLink = async (event: { url: string }) => {
       const { url } = event;
       if (!url.includes('access_token')) return;
 
@@ -142,8 +142,8 @@ function RootLayoutNav() {
         if (result.access_token && result.refresh_token) {
           clearAllStores();
           useAuthStore.getState().setTokens(result.access_token, result.refresh_token);
+          await useShadowSyncStore.getState().fetchAndMerge(true);
           router.replace('/(tabs)');
-          useShadowSyncStore.getState().fetchAndMerge(true);
         }
       } catch {
         // Swallow — the OAuth flow may send other URLs that don't contain tokens

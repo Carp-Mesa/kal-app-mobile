@@ -1,10 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { generateId, getLocalDateString, WaterLog } from './types';
+import { generateId, getLocalDateString, isLocalDate, WaterLog } from './types';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Water Store — Local-First
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Architecture rules:
+//   1. NEVER mutate state — always create new arrays via spread.
+//   2. ALWAYS coerce numeric fields via Number() at write time.
+//   3. Sync notification is handled by the hooks layer (useLogs.ts) to
+//      avoid circular dependencies with useShadowSyncStore.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 interface WaterState {
@@ -39,13 +46,15 @@ export const useWaterStore = create<WaterState>()(
       // ── addWater ───────────────────────────────────────────────────────────
       addWater: (amount_ml) => {
         const now = new Date().toISOString();
+        const safeAmount = Number(amount_ml) || 0;
         const entry: WaterLog = {
           id: generateId(),
-          amount_ml,
+          amount_ml: safeAmount,
           created_at: now,
           synced: false,
           updated_at: now,
         };
+
         set((state) => ({ logs: [entry, ...state.logs] }));
       },
 
@@ -75,7 +84,11 @@ export const useWaterStore = create<WaterState>()(
             if (!local) {
               mergedMap.set(remote.id, { ...remote, synced: true });
             } else if (local.synced) {
-              mergedMap.set(remote.id, { ...remote, synced: true });
+              const localUpdated = local.updated_at || '';
+              const remoteUpdated = remote.updated_at || '';
+              if (remoteUpdated > localUpdated) {
+                mergedMap.set(remote.id, { ...remote, synced: true });
+              }
             }
           }
 
@@ -87,14 +100,14 @@ export const useWaterStore = create<WaterState>()(
       getTodayTotal: () => {
         const today = getLocalDateString();
         return get()
-          .logs.filter((l) => l.created_at.startsWith(today))
-          .reduce((sum, l) => sum + l.amount_ml, 0);
+          .logs.filter((l) => isLocalDate(l.created_at, today))
+          .reduce((sum, l) => sum + (Number(l.amount_ml) || 0), 0);
       },
 
       // ── getTodayLogs ───────────────────────────────────────────────────────
       getTodayLogs: () => {
         const today = getLocalDateString();
-        return get().logs.filter((l) => l.created_at.startsWith(today));
+        return get().logs.filter((l) => isLocalDate(l.created_at, today));
       },
     }),
     {

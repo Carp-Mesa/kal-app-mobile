@@ -29,6 +29,7 @@ export function clearAllStores(): void {
   useShadowSyncStore.setState({
     isSyncing: false,
     isFetching: false,
+    pendingResync: false,
     lastSyncAt: null,
     lastFetchAt: null,
     debugLog: [],

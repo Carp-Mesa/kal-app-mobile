@@ -116,11 +116,11 @@ export default function RegisterScreen() {
         // 3. Persist new session
         setTokens(response.access_token, response.refresh_token);
 
-        // 4. Navigate to onboarding for initial setup
-        router.replace('/(onboarding)/screen');
+        // 4. Cold Start: fetch profile and any existing data from server FIRST
+        await useShadowSyncStore.getState().fetchAndMerge(true);
 
-        // 5. Cold Start: fetch profile and any existing data from server
-        useShadowSyncStore.getState().fetchAndMerge(true);
+        // 5. Navigate to onboarding for initial setup
+        router.replace('/(onboarding)/screen');
       }
     } catch (error: any) {
       const msg = error?.message || error?.toString() || '';

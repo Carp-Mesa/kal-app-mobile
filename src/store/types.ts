@@ -85,6 +85,27 @@ export function getLocalDateString(date?: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/**
+ * Timezone-safe "is this entry from today?" check.
+ *
+ * `created_at` / `start_time` / `end_time` are stored as ISO-8601 UTC strings
+ * (e.g. "2026-05-20T04:30:00.000Z").  When the user's timezone is UTC-X,
+ * the UTC date can be **one day ahead** of the local date.
+ *
+ * Using `isoString.startsWith(localDate)` fails around midnight.  This helper
+ * parses the ISO string into a Date object (which converts to local timezone)
+ * and then compares the resulting local date.
+ */
+export function isLocalDate(isoString: string, localDateStr: string): boolean {
+  if (isoString.startsWith(localDateStr)) return true;
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return false;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}` === localDateStr;
+}
+
 /** Generates a UUID v4 using the native crypto API. */
 export function generateId(): string {
   // crypto.randomUUID is available in React Native Hermes ≥ 0.72 and modern V8

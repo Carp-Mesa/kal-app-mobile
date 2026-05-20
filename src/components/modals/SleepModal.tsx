@@ -3,7 +3,7 @@ import { useLogSleep } from '@/src/hooks/useLogs';
 import { useShake } from '@/src/hooks/useShake';
 import { useAppStore } from '@/src/store/useAppStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { HelperText, Text } from 'react-native-paper';
 import Animated from 'react-native-reanimated';
@@ -242,16 +242,18 @@ export const SleepModal: React.FC<SleepModalProps> = ({ visible, onDismiss, onSu
     });
   }, [sleepMut, start, end, qualityScore, onSuccess, onDismiss, shake]);
 
-  // Clear error when modal opens
+  const lastTriggerRef = useRef(0);
+
   useEffect(() => {
     if (visible) {
       setError('');
+      lastTriggerRef.current = triggerSaveModal;
     }
   }, [visible]);
 
-  // Listen for central button save trigger
   useEffect(() => {
-    if (visible && triggerSaveModal > 0) {
+    if (visible && triggerSaveModal > lastTriggerRef.current) {
+      lastTriggerRef.current = triggerSaveModal;
       handleSave();
     }
   }, [triggerSaveModal, visible, handleSave]);

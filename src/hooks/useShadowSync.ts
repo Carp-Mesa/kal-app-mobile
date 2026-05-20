@@ -40,8 +40,7 @@ export function useShadowSync() {
         if (!useAuthStore.getState().accessToken) return;
         NetInfo.fetch().then((state) => {
           if (state.isConnected) {
-            syncAll();
-            fetchAndMerge();
+            syncAll().then(() => fetchAndMerge());
           }
         });
       }

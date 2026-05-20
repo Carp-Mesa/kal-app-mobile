@@ -113,17 +113,17 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
         try {
           await apiClient.put('/profile', {
             full_name: p.full_name,
-            age: p.age,
-            height: p.height,
-            current_weight: p.current_weight,
-            body_fat_percentage: p.body_fat_percentage,
-            weight_goal: p.weight_goal,
-            calorie_goal: p.calorie_goal,
-            protein_goal: p.protein_goal,
-            carbs_goal: p.carbs_goal,
-            fats_goal: p.fats_goal,
-            water_goal: p.water_goal,
-            sleep_goal: p.sleep_goal,
+            age: p.age != null ? Number(p.age) : undefined,
+            height: p.height != null ? Number(p.height) : undefined,
+            current_weight: p.current_weight != null ? Number(p.current_weight) : undefined,
+            body_fat_percentage: p.body_fat_percentage != null ? Number(p.body_fat_percentage) : undefined,
+            weight_goal: p.weight_goal != null ? Number(p.weight_goal) : undefined,
+            calorie_goal: p.calorie_goal != null ? Number(p.calorie_goal) : undefined,
+            protein_goal: p.protein_goal != null ? Number(p.protein_goal) : undefined,
+            carbs_goal: p.carbs_goal != null ? Number(p.carbs_goal) : undefined,
+            fats_goal: p.fats_goal != null ? Number(p.fats_goal) : undefined,
+            water_goal: p.water_goal != null ? Number(p.water_goal) : undefined,
+            sleep_goal: p.sleep_goal != null ? Number(p.sleep_goal) : undefined,
           });
           useProfileStore.getState().markProfileSynced();
           set((s) => ({
@@ -305,27 +305,11 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
         }
       }
 
-      // ── Workouts — Cold Start vs Warm Merge ──────────────────────────────
+      // ── Workouts — merge via idempotent store method ────────────────────────
       if (workoutsRes.status === 'fulfilled') {
         const serverItems: any[] = workoutsRes.value.data?.data ?? [];
         const serverWorkouts: WorkoutLog[] = serverItems.map(normalizeWorkout);
-
-        const localLogs = useWorkoutStore.getState().logs;
-
-        if (localLogs.length === 0) {
-          // ── COLD START: store is empty → overwrite directly ─────────────
-          useWorkoutStore.setState({ logs: serverWorkouts });
-        } else {
-          // ── WARM MERGE: store already has data ───────────────────────────
-          const localIds = new Set(localLogs.map((l) => l.id));
-          const newFromServer = serverWorkouts.filter((w) => !localIds.has(w.id));
-
-          if (newFromServer.length > 0) {
-            useWorkoutStore.setState((state) => ({
-              logs: [...state.logs, ...newFromServer],
-            }));
-          }
-        }
+        useWorkoutStore.getState().mergeFromServer(serverWorkouts);
       }
 
       set({ lastFetchAt: new Date().toISOString() });

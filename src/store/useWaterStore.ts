@@ -68,24 +68,18 @@ export const useWaterStore = create<WaterState>()(
       // ── mergeFromServer ────────────────────────────────────────────────────
       mergeFromServer: (serverLogs) => {
         set((state) => {
-          const localById = new Map(state.logs.map((l) => [l.id, l]));
-          const merged = [...state.logs];
+          const mergedMap = new Map(state.logs.map((l) => [l.id, l]));
 
           for (const remote of serverLogs) {
-            const local = localById.get(remote.id);
+            const local = mergedMap.get(remote.id);
             if (!local) {
-              // New from server — add as synced
-              merged.push({ ...remote, synced: true });
-            }
-            // If local exists AND is unsynced, keep local version (local wins)
-            // If local exists AND is synced, update with server version
-            else if (local.synced) {
-              const idx = merged.findIndex((l) => l.id === remote.id);
-              if (idx !== -1) merged[idx] = { ...remote, synced: true };
+              mergedMap.set(remote.id, { ...remote, synced: true });
+            } else if (local.synced) {
+              mergedMap.set(remote.id, { ...remote, synced: true });
             }
           }
 
-          return { logs: merged };
+          return { logs: Array.from(mergedMap.values()) };
         });
       },
 

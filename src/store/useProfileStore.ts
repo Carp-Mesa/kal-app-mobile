@@ -38,6 +38,12 @@ interface ProfileState {
 // this mapper documents the contract explicitly and guards against
 // unexpected extra keys or missing values.
 // ═══════════════════════════════════════════════════════════════════════════════
+function toNumber(val: unknown): number | undefined {
+  if (val == null) return undefined;
+  const n = Number(val);
+  return isNaN(n) ? undefined : n;
+}
+
 export function mapApiProfileToStore(apiData: any): Partial<ProfileData> {
   if (!apiData || typeof apiData !== 'object') return {};
 
@@ -46,17 +52,17 @@ export function mapApiProfileToStore(apiData: any): Partial<ProfileData> {
     username: apiData.username,
     full_name: apiData.full_name,
     avatar_url: apiData.avatar_url,
-    age: typeof apiData.age === 'number' ? apiData.age : undefined,
-    height: typeof apiData.height === 'number' ? apiData.height : undefined,
-    current_weight: typeof apiData.current_weight === 'number' ? apiData.current_weight : undefined,
-    body_fat_percentage: typeof apiData.body_fat_percentage === 'number' ? apiData.body_fat_percentage : undefined,
-    weight_goal: typeof apiData.weight_goal === 'number' ? apiData.weight_goal : undefined,
-    calorie_goal: typeof apiData.calorie_goal === 'number' ? apiData.calorie_goal : undefined,
-    protein_goal: typeof apiData.protein_goal === 'number' ? apiData.protein_goal : undefined,
-    carbs_goal: typeof apiData.carbs_goal === 'number' ? apiData.carbs_goal : undefined,
-    fats_goal: typeof apiData.fats_goal === 'number' ? apiData.fats_goal : undefined,
-    water_goal: typeof apiData.water_goal === 'number' ? apiData.water_goal : undefined,
-    sleep_goal: typeof apiData.sleep_goal === 'number' ? apiData.sleep_goal : undefined,
+    age: toNumber(apiData.age),
+    height: toNumber(apiData.height),
+    current_weight: toNumber(apiData.current_weight),
+    body_fat_percentage: toNumber(apiData.body_fat_percentage),
+    weight_goal: toNumber(apiData.weight_goal),
+    calorie_goal: toNumber(apiData.calorie_goal),
+    protein_goal: toNumber(apiData.protein_goal),
+    carbs_goal: toNumber(apiData.carbs_goal),
+    fats_goal: toNumber(apiData.fats_goal),
+    water_goal: toNumber(apiData.water_goal),
+    sleep_goal: toNumber(apiData.sleep_goal),
   };
 }
 
@@ -69,16 +75,26 @@ export const useProfileStore = create<ProfileState>()(
       setHasHydrated: (state) => set({ _hasHydrated: state }),
 
       setProfile: (data) =>
-        set((state) => ({
-          profile: state.profile ? { ...state.profile, ...data } : (data as ProfileData),
-          synced: true,
-        })),
+        set((state) => {
+          const clean = Object.fromEntries(
+            Object.entries(data).filter(([_, v]) => v !== undefined),
+          );
+          return {
+            profile: state.profile ? { ...state.profile, ...clean } : (clean as ProfileData),
+            synced: true,
+          };
+        }),
 
       updateProfile: (data) =>
-        set((state) => ({
-          profile: state.profile ? { ...state.profile, ...data } : data,
-          synced: false,
-        })),
+        set((state) => {
+          const clean = Object.fromEntries(
+            Object.entries(data).filter(([_, v]) => v !== undefined),
+          );
+          return {
+            profile: state.profile ? { ...state.profile, ...clean } : (clean as ProfileData),
+            synced: false,
+          };
+        }),
 
       clearProfile: () => set({ profile: null, synced: true }),
 

@@ -50,6 +50,16 @@ export const WheelPicker: React.FC<WheelPickerProps> = memo(({
     }
   }, [selectedIndex, data.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Force scroll to initial selectedIndex on mount (e.g. inside lazy modal containers)
+  useEffect(() => {
+    if (selectedIndex > 0 && flatListRef.current) {
+      const timer = setTimeout(() => {
+        flatListRef.current?.scrollToIndex({ index: selectedIndex, animated: false });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = event.nativeEvent.contentOffset.y;
     const index = Math.round(y / ITEM_HEIGHT);
@@ -75,6 +85,7 @@ export const WheelPicker: React.FC<WheelPickerProps> = memo(({
       <FlatList
         ref={flatListRef}
         data={data}
+        initialScrollIndex={selectedIndex}
         renderItem={renderItem}
         keyExtractor={(_, index) => `wp-${index}`}
         showsVerticalScrollIndicator={false}

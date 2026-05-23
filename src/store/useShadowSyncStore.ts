@@ -369,7 +369,30 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
         const payload = profileRes.value.data?.data ?? profileRes.value.data;
         const mappedProfile = mapApiProfileToStore(payload);
         if (Object.keys(mappedProfile).length > 0) {
-          useProfileStore.getState().setProfile(mappedProfile);
+          const profileStore = useProfileStore.getState();
+          const localProfile = profileStore.profile || {};
+          const wasSynced = profileStore.synced;
+
+          const mergedProfile = { ...localProfile } as any;
+
+          Object.keys(mappedProfile).forEach((key) => {
+            const k = key as any;
+            const serverVal = (mappedProfile as any)[k];
+            const localVal = (localProfile as any)[k];
+
+            if (serverVal !== undefined && serverVal !== null && serverVal !== '') {
+              mergedProfile[k] = serverVal;
+            } else if (localVal !== undefined && localVal !== null && localVal !== '') {
+              mergedProfile[k] = localVal;
+            }
+          });
+
+          profileStore.setProfile(mergedProfile);
+
+          // If profile had unsynced local changes (like full_name on register), preserve unsynced state to sync to server
+          if (!wasSynced) {
+            useProfileStore.setState({ synced: false });
+          }
         }
       } else if (profileRes.status === 'rejected') {
         console.warn('[ShadowSync] fetchAndMerge: profile REJECTED', profileRes.reason?.message);

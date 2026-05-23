@@ -106,19 +106,21 @@ export const WaterModal: React.FC<WaterModalProps> = ({ visible, onDismiss, wate
       </View>
 
       <Animated.View style={animatedStyle}>
-        <TextInput
-          mode="outlined"
-          label="Cantidad personalizada (ml)"
-          value={amount}
-          onChangeText={(text) => { setAmount(text.replace(/[^0-9]/g, '')); setError(''); }}
-          placeholder="Ej: 350"
-          keyboardType="numeric"
-          style={styles.input}
-          outlineColor={outlineColor}
-          activeOutlineColor={error ? ERROR_RED : CYBER_LIME}
-          textColor="#FFFFFF"
-          theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
-        />
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>CANTIDAD PERSONALIZADA (ML)</Text>
+          <TextInput
+            mode="outlined"
+            value={amount}
+            onChangeText={(text) => { setAmount(text.replace(/[^0-9]/g, '')); setError(''); }}
+            placeholder="Ej: 350"
+            keyboardType="numeric"
+            style={styles.input}
+            outlineColor={outlineColor}
+            activeOutlineColor={error ? ERROR_RED : CYBER_LIME}
+            textColor="#FFFFFF"
+            theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
+          />
+        </View>
       </Animated.View>
       {error ? <HelperText type="error" visible style={{ color: ERROR_RED }}>{error}</HelperText> : null}
     </CyberModal>
@@ -162,8 +164,20 @@ const styles = StyleSheet.create({
     marginTop: 2,
     letterSpacing: 0.5,
   },
-  input: {
-    backgroundColor: 'transparent',
+  inputGroup: {
     marginTop: 8,
+  },
+  inputLabel: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    marginBottom: 6,
+    marginLeft: 2,
+    textTransform: 'uppercase',
+  },
+  input: {
+    backgroundColor: '#1A1A1A',
+    height: 52,
   },
 });

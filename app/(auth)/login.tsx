@@ -1,7 +1,7 @@
 import { authService } from '@/src/services/authService';
+import { clearAllStores } from '@/src/store/clearAllStores';
 import { useAuthStore } from '@/src/store/useAuthStore';
 import { useShadowSyncStore } from '@/src/store/useShadowSyncStore';
-import { clearAllStores } from '@/src/store/clearAllStores';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
@@ -23,7 +23,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 const CYBER_LIME = '#CCFF00';
-const CARD_BG = '#1A1A1A';
+const CARD_BG = '#121212';
 const ERROR_RED = '#FF4444';
 
 function useShake() {
@@ -48,7 +48,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [secure, setSecure] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [oauthLoading, setOauthLoading] = useState(false);
+  const [oauthProviderLoading, setOauthProviderLoading] = useState<'google' | 'facebook' | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
   const { setTokens } = useAuthStore();
@@ -81,7 +81,7 @@ export default function LoginScreen() {
     try {
       const response = await authService.login(email, password);
       if (response?.access_token) {
-        onAuthSuccess(response.access_token, response.refresh_token);
+        await onAuthSuccess(response.access_token, response.refresh_token);
       } else {
         setErrorMsg('Respuesta inválida del servidor.');
         shakeTrigger();
@@ -106,11 +106,11 @@ export default function LoginScreen() {
 
   const handleOAuth = async (provider: 'google' | 'facebook') => {
     setErrorMsg('');
-    setOauthLoading(true);
+    setOauthProviderLoading(provider);
     try {
       const result = await authService.loginWithOAuth(provider);
       if (result?.access_token) {
-        onAuthSuccess(result.access_token, result.refresh_token);
+        await onAuthSuccess(result.access_token, result.refresh_token);
       } else {
         setErrorMsg('No se pudieron obtener las credenciales.');
         shakeTrigger();
@@ -130,12 +130,15 @@ export default function LoginScreen() {
         shakeTrigger();
       }
     } finally {
-      setOauthLoading(false);
+      setOauthProviderLoading(null);
     }
   };
 
   const inputBorderColor = errorMsg ? ERROR_RED : 'rgba(255,255,255,0.15)';
+  const oauthLoading = !!oauthProviderLoading;
   const isAnyLoading = loading || oauthLoading;
+  const isGoogleLoading = oauthProviderLoading === 'google';
+  const isFacebookLoading = oauthProviderLoading === 'facebook';
 
   return (
     <KeyboardAvoidingView
@@ -153,52 +156,57 @@ export default function LoginScreen() {
           <View style={styles.header}>
             <View style={styles.iconRing}>
               <View style={styles.iconContainer}>
-                <MaterialCommunityIcons name="lightning-bolt" size={48} color={CYBER_LIME} />
+                <MaterialCommunityIcons name="lightning-bolt" size={42} color={CYBER_LIME} />
               </View>
             </View>
-            <Text style={styles.title}>BIENVENIDO</Text>
-            <Text style={styles.title}>LIBERA TU POTENCIAL</Text>
-            <Text style={styles.subtitle}>Inicia sesión para continuar tu evolución.</Text>
+            <Text style={styles.title}>BIENVENIDO A KAL</Text>
+            <Text style={styles.subtitle}>Inicia sesión para continuar tu evolución física y mental.</Text>
           </View>
 
           {/* ── Card ────────────────────────────────────────────────── */}
           <Animated.View style={[styles.card, shakeStyle]}>
-            <TextInput
-              label="Correo Electrónico"
-              mode="outlined"
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="email-address"
-              value={email}
-              onChangeText={(t) => { setEmail(t); setErrorMsg(''); }}
-              style={styles.input}
-              outlineStyle={{ borderRadius: 12, borderColor: inputBorderColor, borderWidth: 1.5 }}
-              textColor="#FFFFFF"
-              theme={{ colors: { primary: CYBER_LIME, onSurfaceVariant: '#A0A0A0', outline: inputBorderColor } }}
-              left={<TextInput.Icon icon="email-outline" color="#A0A0A0" />}
-            />
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>CORREO ELECTRÓNICO</Text>
+              <TextInput
+                mode="outlined"
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                placeholder="ejemplo@correo.com"
+                value={email}
+                onChangeText={(t) => { setEmail(t); setErrorMsg(''); }}
+                style={styles.input}
+                outlineStyle={{ borderRadius: 12, borderColor: inputBorderColor, borderWidth: 1.5 }}
+                textColor="#FFFFFF"
+                theme={{ colors: { primary: CYBER_LIME, onSurfaceVariant: '#A0A0A0', outline: inputBorderColor } }}
+                left={<TextInput.Icon icon="email-outline" color="#A0A0A0" />}
+              />
+            </View>
 
-            <TextInput
-              label="Contraseña"
-              mode="outlined"
-              autoCapitalize="none"
-              autoCorrect={false}
-              secureTextEntry={secure}
-              value={password}
-              onChangeText={(t) => { setPassword(t); setErrorMsg(''); }}
-              style={[styles.input, { marginBottom: errorMsg ? 8 : 20 }]}
-              outlineStyle={{ borderRadius: 12, borderColor: inputBorderColor, borderWidth: 1.5 }}
-              textColor="#FFFFFF"
-              theme={{ colors: { primary: CYBER_LIME, onSurfaceVariant: '#A0A0A0', outline: inputBorderColor } }}
-              left={<TextInput.Icon icon="lock-outline" color="#A0A0A0" />}
-              right={
-                <TextInput.Icon
-                  icon={secure ? 'eye-off-outline' : 'eye-outline'}
-                  color="#A0A0A0"
-                  onPress={() => setSecure(!secure)}
-                />
-              }
-            />
+            <View style={[styles.inputGroup, { marginBottom: errorMsg ? 8 : 20 }]}>
+              <Text style={styles.inputLabel}>CONTRASEÑA</Text>
+              <TextInput
+                mode="outlined"
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry={secure}
+                placeholder="••••••••"
+                value={password}
+                onChangeText={(t) => { setPassword(t); setErrorMsg(''); }}
+                style={styles.input}
+                outlineStyle={{ borderRadius: 12, borderColor: inputBorderColor, borderWidth: 1.5 }}
+                textColor="#FFFFFF"
+                theme={{ colors: { primary: CYBER_LIME, onSurfaceVariant: '#A0A0A0', outline: inputBorderColor } }}
+                left={<TextInput.Icon icon="lock-outline" color="#A0A0A0" />}
+                right={
+                  <TextInput.Icon
+                    icon={secure ? 'eye-off-outline' : 'eye-outline'}
+                    color="#A0A0A0"
+                    onPress={() => setSecure(!secure)}
+                  />
+                }
+              />
+            </View>
 
             {errorMsg ? (
               <Text style={styles.errorText}>{errorMsg}</Text>
@@ -211,7 +219,10 @@ export default function LoginScreen() {
               style={[styles.button, (!email || !password || isAnyLoading) && styles.buttonDisabled]}
             >
               {loading ? (
-                <ActivityIndicator size="small" color="#000000" />
+                <View style={styles.buttonLoadingContent}>
+                  <ActivityIndicator size="small" color="#000000" style={{ marginRight: 10 }} />
+                  <Text style={styles.buttonText}>INICIANDO SESIÓN...</Text>
+                </View>
               ) : (
                 <Text style={styles.buttonText}>ENTRAR</Text>
               )}
@@ -230,9 +241,17 @@ export default function LoginScreen() {
                 activeOpacity={0.85}
                 onPress={() => handleOAuth('google')}
                 disabled={isAnyLoading}
-                style={[styles.oauthButton, isAnyLoading && styles.buttonDisabled]}
+                style={[
+                  styles.oauthButton,
+                  isGoogleLoading && styles.oauthButtonActive,
+                  isAnyLoading && !isGoogleLoading && styles.oauthButtonDisabled,
+                ]}
               >
-                <MaterialCommunityIcons name="google" size={20} color="#FFFFFF" />
+                {isGoogleLoading ? (
+                  <ActivityIndicator size="small" color={CYBER_LIME} />
+                ) : (
+                  <MaterialCommunityIcons name="google" size={20} color="#FFFFFF" />
+                )}
                 <Text style={styles.oauthButtonText}>Google</Text>
               </TouchableOpacity>
 
@@ -240,9 +259,17 @@ export default function LoginScreen() {
                 activeOpacity={0.85}
                 onPress={() => handleOAuth('facebook')}
                 disabled={isAnyLoading}
-                style={[styles.oauthButton, isAnyLoading && styles.buttonDisabled]}
+                style={[
+                  styles.oauthButton,
+                  isFacebookLoading && styles.oauthButtonActive,
+                  isAnyLoading && !isFacebookLoading && styles.oauthButtonDisabled,
+                ]}
               >
-                <MaterialCommunityIcons name="facebook" size={20} color="#FFFFFF" />
+                {isFacebookLoading ? (
+                  <ActivityIndicator size="small" color={CYBER_LIME} />
+                ) : (
+                  <MaterialCommunityIcons name="facebook" size={20} color="#FFFFFF" />
+                )}
                 <Text style={styles.oauthButtonText}>Facebook</Text>
               </TouchableOpacity>
             </View>
@@ -279,22 +306,37 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 28,
+  },
+  tagBadge: {
+    borderWidth: 1,
+    borderColor: CYBER_LIME,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 5,
+    marginBottom: 20,
+    backgroundColor: 'rgba(204, 255, 0, 0.05)',
+  },
+  tagText: {
+    color: CYBER_LIME,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.5,
   },
   iconRing: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
     borderWidth: 1.5,
     borderColor: 'rgba(204, 255, 0, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   iconContainer: {
-    width: 82,
-    height: 82,
-    borderRadius: 41,
+    width: 74,
+    height: 74,
+    borderRadius: 37,
     backgroundColor: 'rgba(204, 255, 0, 0.08)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -303,30 +345,43 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 24,
     fontWeight: '900',
-    letterSpacing: 1,
+    letterSpacing: 1.5,
     textAlign: 'center',
     marginBottom: 0,
     textTransform: 'uppercase',
   },
   subtitle: {
     color: '#A0A0A0',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '400',
     textAlign: 'center',
     paddingHorizontal: 20,
     marginTop: 10,
+    lineHeight: 18.5,
   },
   card: {
     backgroundColor: CARD_BG,
-    borderColor: 'rgba(255,255,255,0.15)',
-    borderWidth: 1.5,
-    borderRadius: 20,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1.2,
+    borderRadius: 24,
     padding: 24,
     opacity: 0.98,
   },
-  input: {
+  inputGroup: {
     marginBottom: 16,
-    backgroundColor: 'transparent',
+  },
+  inputLabel: {
+    color: '#888888',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    marginBottom: 6,
+    marginLeft: 2,
+    textTransform: 'uppercase',
+  },
+  input: {
+    backgroundColor: CARD_BG,
+    height: 56,
   },
   errorText: {
     color: ERROR_RED,
@@ -352,6 +407,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
+  buttonLoadingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   separatorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -360,7 +420,7 @@ const styles = StyleSheet.create({
   separatorLine: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
   },
   separatorText: {
     color: '#A0A0A0',
@@ -384,6 +444,13 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderRadius: 12,
     paddingVertical: 14,
+  },
+  oauthButtonActive: {
+    backgroundColor: 'rgba(204, 255, 0, 0.08)',
+    borderColor: CYBER_LIME,
+  },
+  oauthButtonDisabled: {
+    opacity: 0.4,
   },
   oauthButtonText: {
     color: '#FFFFFF',

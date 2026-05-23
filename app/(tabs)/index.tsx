@@ -9,6 +9,7 @@ import { useProfileStore } from '@/src/store/useProfileStore';
 import { useSleepStore } from '@/src/store/useSleepStore';
 import { useWaterStore } from '@/src/store/useWaterStore';
 import { useWorkoutStore } from '@/src/store/useWorkoutStore';
+import { useSleepWeeklyStats } from '@/src/hooks/useSleepWeeklyStats';
 import { capitalizeName } from '@/src/utils/formatting';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -185,47 +186,207 @@ const WorkoutStatusCard = memo(function WorkoutStatusCard({ title, currentSessio
   );
 });
 
-const SleepChartCard = memo(function SleepChartCard({ title, mainValue, subtitle }: any) {
+const mockSleepAnalytics = {
+  weekly_summary: {
+    total_days_with_sleep: 0,
+    total_days_in_week: 7,
+    average_duration_minutes: 0,
+    average_duration_formatted: '0h 0m',
+    average_quality_score: 0,
+    days_meeting_goal: 0,
+    sleep_goal_minutes: 480,
+    sleep_goal_hours: 8,
+  },
+  days: [
+    { date: '', day_name: 'Lunes', day_name_short: 'Lun', has_sleep_log: false, total_minutes: 0, hours: 0, minutes: 0, quality_score: null, start_time: null, end_time: null, is_goal_met: false },
+    { date: '', day_name: 'Martes', day_name_short: 'Mar', has_sleep_log: false, total_minutes: 0, hours: 0, minutes: 0, quality_score: null, start_time: null, end_time: null, is_goal_met: false },
+    { date: '', day_name: 'Miércoles', day_name_short: 'Mie', has_sleep_log: false, total_minutes: 0, hours: 0, minutes: 0, quality_score: null, start_time: null, end_time: null, is_goal_met: false },
+    { date: '', day_name: 'Jueves', day_name_short: 'Jue', has_sleep_log: false, total_minutes: 0, hours: 0, minutes: 0, quality_score: null, start_time: null, end_time: null, is_goal_met: false },
+    { date: '', day_name: 'Viernes', day_name_short: 'Vie', has_sleep_log: false, total_minutes: 0, hours: 0, minutes: 0, quality_score: null, start_time: null, end_time: null, is_goal_met: false },
+    { date: '', day_name: 'Sábado', day_name_short: 'Sab', has_sleep_log: false, total_minutes: 0, hours: 0, minutes: 0, quality_score: null, start_time: null, end_time: null, is_goal_met: false },
+    { date: '', day_name: 'Domingo', day_name_short: 'Dom', has_sleep_log: false, total_minutes: 0, hours: 0, minutes: 0, quality_score: null, start_time: null, end_time: null, is_goal_met: false },
+  ],
+  insights: {
+    best_quality_day: null,
+    longest_sleep_day: null,
+    shortest_sleep_day: null,
+    consistency_score: 0,
+  },
+};
+
+const SleepChartCard = memo(function SleepChartCard({ title, analytics, isLoading }: any) {
   const theme = useTheme();
-  const days = ['L', 'M', 'Mi', 'J', 'V', 'S', 'D'];
-  const chartData = [0.5, 0.8, 0.5, 1.0, 0.7, 0.9, 0.6];
+
+  const weeklySummary = analytics?.weekly_summary || mockSleepAnalytics.weekly_summary;
+  const days = analytics?.days || mockSleepAnalytics.days;
+  const insights = analytics?.insights || mockSleepAnalytics.insights;
+
+  const getConsistencyLabel = (score: number) => {
+    if (score >= 90) return '¡Excelente ritmo!';
+    if (score >= 70) return 'Buen descanso';
+    if (score >= 50) return 'Ritmo regular';
+    return 'Establece tu rutina';
+  };
+
+  const dayLabels = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
   return (
     <View style={{
         backgroundColor: theme.dark ? '#1c1c1e' : theme.colors.surface,
         borderColor: 'rgba(255,255,255,0.15)',
         borderWidth: 1.5,
-        borderRadius: 16,
+        borderRadius: 20,
         padding: 16,
         marginBottom: 16,
+        elevation: 0,
       }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-        <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(204, 255, 0, 0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-          <MaterialCommunityIcons name="bed" size={20} color={theme.colors.primary} />
-        </View>
-        <Text style={{ color: theme.colors.onSurface, fontWeight: '700', fontSize: 18 }}>{title}</Text>
-      </View>
-
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 20 }}>
-        <Text style={{ color: theme.colors.primary, fontSize: 24, fontWeight: 'bold' }}>{mainValue}</Text>
-        <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 14 }}>{subtitle}</Text>
-      </View>
-
-      {/* Bar Chart */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', height: 80, alignItems: 'flex-end', paddingHorizontal: 4 }}>
-        {days.map((day, i) => (
-          <View key={i} style={{ alignItems: 'center', width: 24 }}>
-            <View style={{ 
-              width: 18, 
-              height: 50 * chartData[i] + 10, 
-              backgroundColor: theme.colors.primary, 
-              borderRadius: 4,
-              marginBottom: 8
-            }} />
-            <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12, fontWeight: '600' }}>{day}</Text>
+      {/* Header */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(204, 255, 0, 0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+            <MaterialCommunityIcons name="bed" size={22} color={theme.colors.primary} />
           </View>
-        ))}
+          <View>
+            <Text style={{ color: theme.colors.onSurface, fontWeight: '800', fontSize: 18 }}>{title}</Text>
+            <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12 }}>
+              {weeklySummary.total_days_with_sleep} / {weeklySummary.total_days_in_week} días registrados
+            </Text>
+          </View>
+        </View>
+        
+        {/* Average Badge */}
+        <View style={{ backgroundColor: theme.dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}>
+          <Text style={{ color: theme.colors.onSurface, fontWeight: '700', fontSize: 12 }}>
+            Promedio
+          </Text>
+        </View>
       </View>
+
+      {/* Main Sleep Metric */}
+      <View style={{ marginBottom: 20 }}>
+        <Text style={{ color: theme.colors.primary, fontSize: 32, fontWeight: '800' }}>
+          {weeklySummary.average_duration_formatted || '0h 0m'}
+        </Text>
+        <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12, marginTop: 2 }}>
+          Duración diaria promedio de descanso
+        </Text>
+      </View>
+
+      {/* Burbujas Semanales (Reconteo) */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 24, paddingHorizontal: 4 }}>
+        {dayLabels.map((label, idx) => {
+          const dayData = days[idx] || mockSleepAnalytics.days[idx];
+          const hasLog = dayData?.has_sleep_log;
+          
+          return (
+            <View key={idx} style={{ alignItems: 'center', gap: 4 }}>
+              <View style={[{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                justifyContent: 'center',
+                alignItems: 'center',
+              }, hasLog ? {
+                backgroundColor: theme.colors.primary,
+                shadowColor: theme.colors.primary,
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.3,
+                shadowRadius: 4,
+                elevation: 4,
+              } : {
+                backgroundColor: theme.dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+                borderWidth: 1,
+                borderColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+              }]}>
+                <Text style={{
+                  fontSize: 12,
+                  fontWeight: '800',
+                  color: hasLog ? '#000000' : theme.colors.onSurfaceVariant,
+                }}>
+                  {label}
+                </Text>
+              </View>
+            </View>
+          );
+        })}
+      </View>
+
+      {/* Dynamic Bar Chart */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', height: 100, alignItems: 'flex-end', paddingHorizontal: 6, marginBottom: 12 }}>
+        {days.map((day: any, i: number) => {
+          const totalMins = day?.total_minutes || 0;
+          const hours = totalMins / 60;
+          // Scale relative to 12 hours (720 minutes)
+          const barHeight = Math.max(Math.min((totalMins / 720) * 80, 80), 6);
+          const hasLog = day?.has_sleep_log;
+          const isGoalMet = day?.is_goal_met;
+
+          // Color selection
+          let barBgColor = theme.dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
+          if (hasLog) {
+            barBgColor = isGoalMet ? theme.colors.primary : '#FFB300';
+          }
+
+          return (
+            <View key={i} style={{ alignItems: 'center', width: 28 }}>
+              {hasLog && (
+                <Text style={{ color: isGoalMet ? theme.colors.primary : '#FFB300', fontSize: 10, fontWeight: '700', marginBottom: 4 }}>
+                  {hours.toFixed(1)}h
+                </Text>
+              )}
+              <View style={{ 
+                width: 16, 
+                height: barHeight, 
+                backgroundColor: barBgColor, 
+                borderRadius: 4,
+                marginBottom: 8
+              }} />
+              <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 10, fontWeight: '700' }}>
+                {day?.day_name_short || dayLabels[i]}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+
+      {/* Divider */}
+      <View style={{ height: 1.5, backgroundColor: theme.dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', marginVertical: 16 }} />
+
+      {/* Insights Row */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+        {/* Consistencia */}
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', marginRight: 8 }}>
+          <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(79, 195, 247, 0.12)', justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
+            <MaterialCommunityIcons name="pulse" size={18} color="#4FC3F7" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 10, fontWeight: '700', letterSpacing: 0.5 }}>CONSISTENCIA</Text>
+            <Text style={{ color: '#4FC3F7', fontSize: 15, fontWeight: '800', marginTop: 1 }}>
+              {insights.consistency_score}%
+            </Text>
+            <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 10 }} numberOfLines={1}>
+              {getConsistencyLabel(insights.consistency_score)}
+            </Text>
+          </View>
+        </View>
+
+        {/* Mejor Calidad */}
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(255, 183, 77, 0.12)', justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
+            <MaterialCommunityIcons name="star-face" size={18} color="#FFB74D" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 10, fontWeight: '700', letterSpacing: 0.5 }}>MEJOR NOCHE</Text>
+            <Text style={{ color: '#FFB74D', fontSize: 15, fontWeight: '800', marginTop: 1 }} numberOfLines={1}>
+              {insights.best_quality_day ? insights.best_quality_day.day_name : 'Sin datos'}
+            </Text>
+            <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 10 }} numberOfLines={1}>
+              {insights.best_quality_day ? `Calidad: ${insights.best_quality_day.quality_score}/5` : 'Registra tu descanso'}
+            </Text>
+          </View>
+        </View>
+      </View>
+
     </View>
   );
 });
@@ -248,6 +409,7 @@ export default function DashboardScreen() {
   const workoutLogs = useWorkoutStore((state) => state.logs);
   const profile = useProfileStore((state) => state.profile);
 
+  const { data: sleepAnalytics, refetch: refetchSleep } = useSleepWeeklyStats();
   const [snackbar, setSnackbar] = useState({ visible: false, message: '' });
   const handleSnackbar = (message: string) => setSnackbar({ visible: true, message });
 
@@ -379,9 +541,8 @@ export default function DashboardScreen() {
 
           {/* Row 3: Sueño */}
           <SleepChartCard
-            title="Sueño"
-            mainValue={`${sleptHours}h ${sleptMins}m`}
-            subtitle="Horas dormidas"
+            title="Análisis de Sueño"
+            analytics={sleepAnalytics || mockSleepAnalytics}
           />
         </FadeIn>
 
@@ -401,7 +562,10 @@ export default function DashboardScreen() {
       <SleepModal
         visible={modalVisible === 'sleep'}
         onDismiss={() => setModalVisible('none')}
-        onSuccess={() => handleSnackbar('¡Sueño registrado!')}
+        onSuccess={() => {
+          handleSnackbar('¡Sueño registrado!');
+          refetchSleep();
+        }}
       />
 
       <Portal>

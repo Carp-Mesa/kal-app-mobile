@@ -26,21 +26,42 @@ const CYBER_LIME = '#CCFF00';
 const SLIDES = [
   {
     id: '1',
+    tag: '01. EVOLUCIÓN',
     title: 'ESTACIÓN DE PODER',
-    subtitle: 'Toma el control total de tu rendimiento físico y mental en un solo lugar.',
+    highlight: 'Toma el control absoluto de tu rendimiento físico y mental.',
+    description: 'Centraliza tus entrenamientos, hábitos y descanso en un centro de mando unificado y ultra-rápido.',
+    bullets: [
+      { icon: 'view-dashboard-outline', text: 'Métricas integrales en tiempo real' },
+      { icon: 'chart-timeline-variant', text: 'Historial de progreso visual sin fricciones' },
+      { icon: 'brain', text: 'Seguimiento de la conexión cuerpo-mente' }
+    ],
     icon: 'lightning-bolt',
   },
   {
     id: '2',
+    tag: '02. RENDIMIENTO',
     title: 'PRECISIÓN TÉCNICA',
-    subtitle: 'Registra tus series y carga progresiva en menos de 10 segundos.',
+    highlight: 'Registra tus series y carga progresiva en menos de 10 segundos.',
+    description: 'Diseñado por y para atletas que buscan optimizar cada repetición y cuantificar su esfuerzo de forma real.',
+    bullets: [
+      { icon: 'database-plus-outline', text: 'Registro instantáneo de peso y reps' },
+      { icon: 'trending-up', text: 'Cálculo de sobrecarga progresiva eficiente' },
+      { icon: 'timer-outline', text: 'Controlador inteligente de descansos' }
+    ],
     icon: 'dumbbell',
   },
   {
     id: '3',
+    tag: '03. VITALIDAD',
     title: 'COMBUSTIBLE Y REPOSO',
-    subtitle: 'Optimiza tu hidratación, nutrición y sueño para una recuperación de élite.',
-    icon: 'water',
+    highlight: 'Optimiza tu hidratación, nutrición y sueño diario.',
+    description: 'El rendimiento real ocurre fuera del gimnasio. Monitorea las variables que garantizan tu recuperación de élite.',
+    bullets: [
+      { icon: 'water-outline', text: 'Monitoreo de hidratación inteligente' },
+      { icon: 'food-apple-outline', text: 'Balance calórico y macronutrientes clave' },
+      { icon: 'bed-double-outline', text: 'Calidad de sueño y ritmo circadiano' }
+    ],
+    icon: 'heart-pulse',
   },
 ];
 
@@ -77,19 +98,42 @@ const Slide = ({ item }: { item: typeof SLIDES[0] }) => {
   return (
     <View style={styles.slide}>
       <FadeInUp delay={100}>
+        <View style={styles.tagBadge}>
+          <Text style={styles.tagText}>{item.tag}</Text>
+        </View>
+      </FadeInUp>
+
+      <FadeInUp delay={200}>
         <View style={styles.iconRing}>
           <View style={styles.iconContainer}>
-            <MaterialCommunityIcons name={item.icon as any} size={72} color={CYBER_LIME} />
+            <MaterialCommunityIcons name={item.icon as any} size={42} color={CYBER_LIME} />
           </View>
         </View>
       </FadeInUp>
 
-      <FadeInUp delay={250}>
+      <FadeInUp delay={300}>
         <Text style={styles.title}>{item.title}</Text>
       </FadeInUp>
 
       <FadeInUp delay={400}>
-        <Text style={styles.subtitle}>{item.subtitle}</Text>
+        <Text style={styles.highlight}>{item.highlight}</Text>
+      </FadeInUp>
+
+      <FadeInUp delay={550}>
+        <View style={styles.infoCard}>
+          <Text style={styles.description}>{item.description}</Text>
+          <View style={styles.divider} />
+          <View style={styles.bulletList}>
+            {item.bullets.map((bullet, idx) => (
+              <View key={idx} style={styles.bulletItem}>
+                <View style={styles.bulletIconWrapper}>
+                  <MaterialCommunityIcons name={bullet.icon as any} size={18} color={CYBER_LIME} />
+                </View>
+                <Text style={styles.bulletText}>{bullet.text}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
       </FadeInUp>
     </View>
   );
@@ -188,43 +232,103 @@ const styles = StyleSheet.create({
     height,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 28,
-    paddingBottom: 180,
+    paddingHorizontal: 24,
+    paddingBottom: 170,
+  },
+  tagBadge: {
+    borderWidth: 1,
+    borderColor: CYBER_LIME,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 5,
+    marginBottom: 20,
+    backgroundColor: 'rgba(204, 255, 0, 0.05)',
+  },
+  tagText: {
+    color: CYBER_LIME,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.5,
   },
   iconRing: {
-    width: 170,
-    height: 170,
-    borderRadius: 85,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
     borderWidth: 1.5,
     borderColor: 'rgba(204, 255, 0, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 48,
+    marginBottom: 24,
   },
   iconContainer: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
+    width: 74,
+    height: 74,
+    borderRadius: 37,
     backgroundColor: 'rgba(204, 255, 0, 0.08)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   title: {
     color: '#FFFFFF',
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '900',
-    letterSpacing: 1.2,
+    letterSpacing: 1.5,
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
     textTransform: 'uppercase',
   },
-  subtitle: {
-    color: '#A0A0A0',
-    fontSize: 15,
+  highlight: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+    paddingHorizontal: 10,
+  },
+  infoCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1.2,
+    borderRadius: 20,
+    padding: 20,
+    width: width - 48,
+  },
+  description: {
+    color: '#B0B0B0',
+    fontSize: 13,
     fontWeight: '400',
     textAlign: 'center',
-    lineHeight: 24,
-    paddingHorizontal: 12,
+    lineHeight: 18.5,
+    marginBottom: 16,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    width: '100%',
+    marginBottom: 16,
+  },
+  bulletList: {
+    gap: 12,
+  },
+  bulletItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  bulletIconWrapper: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(204, 255, 0, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bulletText: {
+    color: '#E0E0E0',
+    fontSize: 13,
+    fontWeight: '500',
+    flex: 1,
   },
   footer: {
     position: 'absolute',

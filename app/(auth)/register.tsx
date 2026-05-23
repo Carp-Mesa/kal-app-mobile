@@ -165,77 +165,89 @@ export default function RegisterScreen() {
 
           {/* ── Card ────────────────────────────────────────────────── */}
           <Animated.View style={[styles.card, shakeStyle]}>
-            <TextInput
-              label="Nombre Completo"
-              mode="outlined"
-              autoCapitalize="words"
-              value={fullName}
-              onChangeText={(t) => { setFullName(t); if (errorField === 'fullName') { setErrorField(null); setErrorMsg(''); } }}
-              style={styles.input}
-              outlineStyle={{ borderRadius: 12, borderColor: getInputBorderColor('fullName'), borderWidth: 1.5 }}
-              textColor="#FFFFFF"
-              theme={{ colors: { primary: CYBER_LIME, onSurfaceVariant: '#A0A0A0', outline: getInputBorderColor('fullName') } }}
-              left={<TextInput.Icon icon="account-outline" color="#A0A0A0" />}
-            />
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>NOMBRE COMPLETO</Text>
+              <TextInput
+                mode="outlined"
+                autoCapitalize="words"
+                placeholder="Ej: Carp Mesa"
+                value={fullName}
+                onChangeText={(t) => { setFullName(t); if (errorField === 'fullName') { setErrorField(null); setErrorMsg(''); } }}
+                style={styles.input}
+                outlineStyle={{ borderRadius: 12, borderColor: getInputBorderColor('fullName'), borderWidth: 1.5 }}
+                textColor="#FFFFFF"
+                theme={{ colors: { primary: CYBER_LIME, onSurfaceVariant: '#A0A0A0', outline: getInputBorderColor('fullName') } }}
+                left={<TextInput.Icon icon="account-outline" color="#A0A0A0" />}
+              />
+            </View>
 
-            <TextInput
-              label="Correo Electrónico"
-              mode="outlined"
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="email-address"
-              value={email}
-              onChangeText={(t) => { setEmail(t); if (errorField === 'email') { setErrorField(null); setErrorMsg(''); } }}
-              style={styles.input}
-              outlineStyle={{ borderRadius: 12, borderColor: getInputBorderColor('email'), borderWidth: 1.5 }}
-              textColor="#FFFFFF"
-              theme={{ colors: { primary: CYBER_LIME, onSurfaceVariant: '#A0A0A0', outline: getInputBorderColor('email') } }}
-              left={<TextInput.Icon icon="email-outline" color="#A0A0A0" />}
-            />
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>CORREO ELECTRÓNICO</Text>
+              <TextInput
+                mode="outlined"
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                placeholder="ejemplo@correo.com"
+                value={email}
+                onChangeText={(t) => { setEmail(t); if (errorField === 'email') { setErrorField(null); setErrorMsg(''); } }}
+                style={styles.input}
+                outlineStyle={{ borderRadius: 12, borderColor: getInputBorderColor('email'), borderWidth: 1.5 }}
+                textColor="#FFFFFF"
+                theme={{ colors: { primary: CYBER_LIME, onSurfaceVariant: '#A0A0A0', outline: getInputBorderColor('email') } }}
+                left={<TextInput.Icon icon="email-outline" color="#A0A0A0" />}
+              />
+            </View>
 
-            <TextInput
-              label="Contraseña"
-              mode="outlined"
-              autoCapitalize="none"
-              autoCorrect={false}
-              secureTextEntry={secure}
-              value={password}
-              onChangeText={(t) => { setPassword(t); if (errorField === 'password') { setErrorField(null); setErrorMsg(''); } }}
-              style={styles.input}
-              outlineStyle={{ borderRadius: 12, borderColor: getInputBorderColor('password'), borderWidth: 1.5 }}
-              textColor="#FFFFFF"
-              theme={{ colors: { primary: CYBER_LIME, onSurfaceVariant: '#A0A0A0', outline: getInputBorderColor('password') } }}
-              left={<TextInput.Icon icon="lock-outline" color="#A0A0A0" />}
-              right={
-                <TextInput.Icon
-                  icon={secure ? 'eye-off-outline' : 'eye-outline'}
-                  color="#A0A0A0"
-                  onPress={() => setSecure(!secure)}
-                />
-              }
-            />
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>CONTRASEÑA</Text>
+              <TextInput
+                mode="outlined"
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry={secure}
+                placeholder="Mínimo 6 caracteres"
+                value={password}
+                onChangeText={(t) => { setPassword(t); if (errorField === 'password') { setErrorField(null); setErrorMsg(''); } }}
+                style={styles.input}
+                outlineStyle={{ borderRadius: 12, borderColor: getInputBorderColor('password'), borderWidth: 1.5 }}
+                textColor="#FFFFFF"
+                theme={{ colors: { primary: CYBER_LIME, onSurfaceVariant: '#A0A0A0', outline: getInputBorderColor('password') } }}
+                left={<TextInput.Icon icon="lock-outline" color="#A0A0A0" />}
+                right={
+                  <TextInput.Icon
+                    icon={secure ? 'eye-off-outline' : 'eye-outline'}
+                    color="#A0A0A0"
+                    onPress={() => setSecure(!secure)}
+                  />
+                }
+              />
+            </View>
 
-            <TextInput
-              label="Confirmar Contraseña"
-              mode="outlined"
-              autoCapitalize="none"
-              autoCorrect={false}
-              secureTextEntry={secureConfirm}
-              value={confirmPassword}
-              onChangeText={(t) => { setConfirmPassword(t); if (errorField === 'confirmPassword') { setErrorField(null); setErrorMsg(''); } }}
-              style={[styles.input, { marginBottom: errorMsg ? 8 : 20 }]}
-              outlineStyle={{ borderRadius: 12, borderColor: getInputBorderColor('confirmPassword'), borderWidth: 1.5 }}
-              textColor="#FFFFFF"
-              theme={{ colors: { primary: CYBER_LIME, onSurfaceVariant: '#A0A0A0', outline: getInputBorderColor('confirmPassword') } }}
-              left={<TextInput.Icon icon="lock-check-outline" color="#A0A0A0" />}
-              right={
-                <TextInput.Icon
-                  icon={secureConfirm ? 'eye-off-outline' : 'eye-outline'}
-                  color="#A0A0A0"
-                  onPress={() => setSecureConfirm(!secureConfirm)}
-                />
-              }
-            />
+            <View style={[styles.inputGroup, { marginBottom: errorMsg ? 8 : 20 }]}>
+              <Text style={styles.inputLabel}>CONFIRMAR CONTRASEÑA</Text>
+              <TextInput
+                mode="outlined"
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry={secureConfirm}
+                placeholder="Repite tu contraseña"
+                value={confirmPassword}
+                onChangeText={(t) => { setConfirmPassword(t); if (errorField === 'confirmPassword') { setErrorField(null); setErrorMsg(''); } }}
+                style={styles.input}
+                outlineStyle={{ borderRadius: 12, borderColor: getInputBorderColor('confirmPassword'), borderWidth: 1.5 }}
+                textColor="#FFFFFF"
+                theme={{ colors: { primary: CYBER_LIME, onSurfaceVariant: '#A0A0A0', outline: getInputBorderColor('confirmPassword') } }}
+                left={<TextInput.Icon icon="lock-check-outline" color="#A0A0A0" />}
+                right={
+                  <TextInput.Icon
+                    icon={secureConfirm ? 'eye-off-outline' : 'eye-outline'}
+                    color="#A0A0A0"
+                    onPress={() => setSecureConfirm(!secureConfirm)}
+                  />
+                }
+              />
+            </View>
 
             {errorMsg ? (
               <Text style={styles.errorText}>{errorMsg}</Text>
@@ -248,7 +260,10 @@ export default function RegisterScreen() {
               style={[styles.button, (!email || !password || !confirmPassword || loading) && styles.buttonDisabled]}
             >
               {loading ? (
-                <ActivityIndicator size="small" color="#000000" />
+                <View style={styles.buttonLoadingContent}>
+                  <ActivityIndicator size="small" color="#000000" style={{ marginRight: 10 }} />
+                  <Text style={styles.buttonText}>ACTIVANDO ESTACIÓN...</Text>
+                </View>
               ) : (
                 <Text style={styles.buttonText}>ACTIVAR ESTACIÓN</Text>
               )}
@@ -330,9 +345,21 @@ const styles = StyleSheet.create({
     padding: 24,
     opacity: 0.98,
   },
-  input: {
+  inputGroup: {
     marginBottom: 14,
-    backgroundColor: 'transparent',
+  },
+  inputLabel: {
+    color: '#888888',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    marginBottom: 6,
+    marginLeft: 2,
+    textTransform: 'uppercase',
+  },
+  input: {
+    backgroundColor: CARD_BG,
+    height: 56,
   },
   errorText: {
     color: ERROR_RED,
@@ -357,6 +384,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.8,
     textTransform: 'uppercase',
+  },
+  buttonLoadingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   footer: {
     marginTop: 28,

@@ -171,35 +171,39 @@ export const NutritionModal: React.FC<NutritionModalProps> = ({ visible, onDismi
   return (
     <CyberModal visible={visible} onDismiss={onDismiss} title="Registro de nutrición">
       <Animated.View style={shakingField === 'name' ? animatedStyle : undefined}>
-        <TextInput
-          mode="outlined"
-          label="Nombre de la comida"
-          value={name}
-          onChangeText={(t) => { setName(t); setError(''); }}
-          placeholder="Ej: Almuerzo"
-          style={styles.input}
-          outlineColor={getOutlineColor('name')}
-          activeOutlineColor={getActiveOutlineColor('name', CYBER_LIME)}
-          textColor="#FFFFFF"
-          theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
-        />
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>NOMBRE DE LA COMIDA</Text>
+          <TextInput
+            mode="outlined"
+            value={name}
+            onChangeText={(t) => { setName(t); setError(''); }}
+            placeholder="Ej: Almuerzo"
+            style={styles.input}
+            outlineColor={getOutlineColor('name')}
+            activeOutlineColor={getActiveOutlineColor('name', CYBER_LIME)}
+            textColor="#FFFFFF"
+            theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
+          />
+        </View>
       </Animated.View>
 
       <Animated.View style={shakingField === 'calories' ? animatedStyle : undefined}>
-        <TextInput
-          mode="outlined"
-          label="Calorías"
-          value={calories}
-          onChangeText={(t) => { setCalories(t.replace(/[^0-9]/g, '')); setError(''); }}
-          placeholder="Ej: 500"
-          keyboardType="numeric"
-          style={styles.input}
-          outlineColor={getOutlineColor('calories')}
-          activeOutlineColor={getActiveOutlineColor('calories', CYBER_LIME)}
-          textColor="#FFFFFF"
-          theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
-          left={<TextInput.Icon icon="fire" color="rgba(255,255,255,0.5)" />}
-        />
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>CALORÍAS</Text>
+          <TextInput
+            mode="outlined"
+            value={calories}
+            onChangeText={(t) => { setCalories(t.replace(/[^0-9]/g, '')); setError(''); }}
+            placeholder="Ej: 500"
+            keyboardType="numeric"
+            style={styles.input}
+            outlineColor={getOutlineColor('calories')}
+            activeOutlineColor={getActiveOutlineColor('calories', CYBER_LIME)}
+            textColor="#FFFFFF"
+            theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
+            left={<TextInput.Icon icon="fire" color="rgba(255,255,255,0.5)" />}
+          />
+        </View>
       </Animated.View>
 
       <View style={styles.autoCalcRow}>
@@ -222,42 +226,53 @@ export const NutritionModal: React.FC<NutritionModalProps> = ({ visible, onDismi
       {!autoCalc && (
         <Animated.View style={shakingField === 'macros' ? animatedStyle : undefined}>
           <View style={styles.manualMacrosRow}>
-            <TextInput
-              mode="outlined"
-              label="Prot (g)"
-              value={protein}
-              onChangeText={(t) => setProtein(t.replace(/[^0-9]/g, ''))}
-              keyboardType="numeric"
-              style={[styles.smallInput, { marginRight: 6 }]}
-              outlineColor="rgba(255,255,255,0.2)"
-              activeOutlineColor={COLOR_PROTEIN}
-              textColor="#FFFFFF"
-              theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
-            />
-            <TextInput
-              mode="outlined"
-              label="Carb (g)"
-              value={carbs}
-              onChangeText={(t) => setCarbs(t.replace(/[^0-9]/g, ''))}
-              keyboardType="numeric"
-              style={[styles.smallInput, { marginHorizontal: 6 }]}
-              outlineColor="rgba(255,255,255,0.2)"
-              activeOutlineColor={COLOR_CARBS}
-              textColor="#FFFFFF"
-              theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
-            />
-            <TextInput
-              mode="outlined"
-              label="Gras (g)"
-              value={fats}
-              onChangeText={(t) => setFats(t.replace(/[^0-9]/g, ''))}
-              keyboardType="numeric"
-              style={[styles.smallInput, { marginLeft: 6 }]}
-              outlineColor="rgba(255,255,255,0.2)"
-              activeOutlineColor={COLOR_FATS}
-              textColor="#FFFFFF"
-              theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
-            />
+            <View style={{ flex: 1, marginRight: 6 }}>
+              <Text style={styles.smallInputLabel}>PROT (G)</Text>
+              <TextInput
+                mode="outlined"
+                value={protein}
+                onChangeText={(t) => setProtein(t.replace(/[^0-9]/g, ''))}
+                keyboardType="numeric"
+                placeholder="0"
+                style={styles.smallInput}
+                outlineColor="rgba(255,255,255,0.2)"
+                activeOutlineColor={COLOR_PROTEIN}
+                textColor="#FFFFFF"
+                theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
+              />
+            </View>
+
+            <View style={{ flex: 1, marginHorizontal: 6 }}>
+              <Text style={styles.smallInputLabel}>CARB (G)</Text>
+              <TextInput
+                mode="outlined"
+                value={carbs}
+                onChangeText={(t) => setCarbs(t.replace(/[^0-9]/g, ''))}
+                keyboardType="numeric"
+                placeholder="0"
+                style={styles.smallInput}
+                outlineColor="rgba(255,255,255,0.2)"
+                activeOutlineColor={COLOR_CARBS}
+                textColor="#FFFFFF"
+                theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
+              />
+            </View>
+
+            <View style={{ flex: 1, marginLeft: 6 }}>
+              <Text style={styles.smallInputLabel}>GRAS (G)</Text>
+              <TextInput
+                mode="outlined"
+                value={fats}
+                onChangeText={(t) => setFats(t.replace(/[^0-9]/g, ''))}
+                keyboardType="numeric"
+                placeholder="0"
+                style={styles.smallInput}
+                outlineColor="rgba(255,255,255,0.2)"
+                activeOutlineColor={COLOR_FATS}
+                textColor="#FFFFFF"
+                theme={{ colors: { onSurface: '#FFFFFF', onSurfaceVariant: 'rgba(255,255,255,0.6)' } }}
+              />
+            </View>
           </View>
         </Animated.View>
       )}
@@ -268,15 +283,28 @@ export const NutritionModal: React.FC<NutritionModalProps> = ({ visible, onDismi
 };
 
 const styles = StyleSheet.create({
+  inputGroup: {
+    marginBottom: 12,
+  },
+  inputLabel: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    marginBottom: 6,
+    marginLeft: 2,
+    textTransform: 'uppercase',
+  },
   input: {
-    backgroundColor: 'transparent',
-    marginBottom: 10,
+    backgroundColor: '#1A1A1A',
+    height: 52,
   },
   autoCalcRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 12,
+    marginTop: 4,
   },
   autoCalcLabel: {
     color: 'rgba(255,255,255,0.7)',
@@ -319,8 +347,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginTop: 8,
   },
+  smallInputLabel: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 8,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 4,
+    marginLeft: 2,
+    textTransform: 'uppercase',
+  },
   smallInput: {
-    flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: '#1A1A1A',
+    height: 48,
   },
 });

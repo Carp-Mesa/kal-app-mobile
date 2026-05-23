@@ -4,7 +4,7 @@ import { useAppStore } from '@/src/store/useAppStore';
 import { useShadowSyncStore } from '@/src/store/useShadowSyncStore';
 import { useWorkoutStore } from '@/src/store/useWorkoutStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useNavigation } from 'expo-router';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -323,34 +323,36 @@ const ExerciseCard = memo(function ExerciseCard({
       {/* Header — Delete on right */}
       <View style={s.exerciseCardHeader}>
         <View style={{ flex: 1 }}>
-          <TextInput
-            mode="outlined"
-            label="Nombre del ejercicio"
-            placeholder="Press banca..."
-            value={localName}
-            onChangeText={(t) => {
-              setLocalName(t);
-              nameFocusedRef.current = true;
-              onUpdateExercise(exerciseId, 'name', t);
-            }}
-            onFocus={() => { setNameFocused(true); nameFocusedRef.current = true; }}
-            onBlur={() => {
-              nameFocusedRef.current = false;
-              if (!justSelectedRef.current) setNameFocused(false);
-              justSelectedRef.current = false;
-              setLocalName(exercise.name);
-            }}
-            autoCapitalize="words"
-            returnKeyType="done"
-            style={{ backgroundColor: 'transparent', marginBottom: showSuggestions ? 4 : 12, marginTop: -5 }}
-            theme={{ colors: { primary: hasNameError ? ERROR_RED : CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
-            outlineStyle={{ ...OUTLINE_STYLE, borderColor: nameOutlineColor }}
-            textColor={WHITE}
-          />
+          <View style={s.inputGroup}>
+            <Text style={s.inputLabel}>Nombre del ejercicio</Text>
+            <TextInput
+              mode="outlined"
+              placeholder="Press banca..."
+              value={localName}
+              onChangeText={(t) => {
+                setLocalName(t);
+                nameFocusedRef.current = true;
+                onUpdateExercise(exerciseId, 'name', t);
+              }}
+              onFocus={() => { setNameFocused(true); nameFocusedRef.current = true; }}
+              onBlur={() => {
+                nameFocusedRef.current = false;
+                if (!justSelectedRef.current) setNameFocused(false);
+                justSelectedRef.current = false;
+                setLocalName(exercise.name);
+              }}
+              autoCapitalize="words"
+              returnKeyType="done"
+              style={{ backgroundColor: CARD_BG, height: 52 }}
+              theme={{ colors: { primary: hasNameError ? ERROR_RED : CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
+              outlineStyle={{ ...OUTLINE_STYLE, borderColor: nameOutlineColor }}
+              textColor={WHITE}
+            />
+          </View>
         </View>
 
         {canRemove && (
-          <Pressable onPress={() => onRemoveExercise(exerciseId)} hitSlop={10} style={{ paddingLeft: 12 }}>
+          <Pressable onPress={() => onRemoveExercise(exerciseId)} hitSlop={10} style={{ paddingLeft: 12, marginTop: 22 }}>
             <MaterialCommunityIcons name="trash-can-outline" size={18} color={MUTED} />
           </Pressable>
         )}
@@ -427,6 +429,8 @@ const ExerciseCard = memo(function ExerciseCard({
 export default function NewWorkoutScreen() {
   const addWorkout = useWorkoutStore((state) => state.addWorkout);
   const scrollRef = useRef<ScrollView>(null);
+  const navigation = useNavigation();
+  const hasBeenLeftRef = useRef(false);
   const { data: rawSuggestions = [] } = useExerciseSuggestions();
   const { shake, animatedStyle } = useShake();
 
@@ -450,6 +454,37 @@ export default function NewWorkoutScreen() {
     setRepsIds: string[];
     setWeightIds: string[];
   }>({ exerciseNameIds: [], setRepsIds: [], setWeightIds: [] });
+
+  // Automatically reset and dismiss the screen when returning (focusing) after being away, only if no fields were filled
+  useEffect(() => {
+    const unsubscribeBlur = navigation.addListener('blur', () => {
+      hasBeenLeftRef.current = true;
+    });
+
+    const unsubscribeFocus = navigation.addListener('focus', () => {
+      if (hasBeenLeftRef.current) {
+        hasBeenLeftRef.current = false;
+
+        const hasName = form.name.trim().length > 0;
+        const hasNotes = form.notes.trim().length > 0;
+        const hasDuration = form.duration_mins.trim().length > 0;
+        const hasAnyExerciseData = form.exercises.some(ex => {
+          if (ex.name.trim().length > 0) return true;
+          return ex.sets.some(s => s.reps.trim().length > 0 || s.weight_kg.trim().length > 0);
+        });
+
+        if (!hasName && !hasNotes && !hasDuration && !hasAnyExerciseData) {
+          setForm(initialForm());
+          router.replace('/(tabs)/workout');
+        }
+      }
+    });
+
+    return () => {
+      unsubscribeBlur();
+      unsubscribeFocus();
+    };
+  }, [navigation, form]);
 
   // ── Compute validation state continuously ─────────────────────────────────
   const { isFormValid, firstInvalidExerciseId } = useMemo(() => {
@@ -620,7 +655,6 @@ export default function NewWorkoutScreen() {
 
     queueMicrotask(() => useShadowSyncStore.getState().enqueueSync());
 
-    // Instant navigation — no HTTP await
     router.back();
   };
   handleSaveRef.current = handleSave;
@@ -647,50 +681,56 @@ export default function NewWorkoutScreen() {
               <Text style={s.dateText}>{formatDisplayDate()}</Text>
             </View>
 
-            <TextInput
-              mode="outlined"
-              label="Nombre de la sesión"
-              placeholder="Push Day"
-              value={form.name}
-              onChangeText={(t) => updateWorkoutField('name', t)}
-              autoCapitalize="words"
-              returnKeyType="next"
-              left={<TextInput.Icon icon="dumbbell" color={SILVER} />}
-              style={s.cardInput}
-              theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
-              outlineStyle={OUTLINE_STYLE}
-              textColor={WHITE}
-            />
+            <View style={s.inputGroup}>
+              <Text style={s.inputLabel}>Nombre de la sesión</Text>
+              <TextInput
+                mode="outlined"
+                placeholder="Push Day"
+                value={form.name}
+                onChangeText={(t) => updateWorkoutField('name', t)}
+                autoCapitalize="words"
+                returnKeyType="next"
+                left={<TextInput.Icon icon="dumbbell" color={SILVER} />}
+                style={s.cardInput}
+                theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
+                outlineStyle={OUTLINE_STYLE}
+                textColor={WHITE}
+              />
+            </View>
 
-            <TextInput
-              mode="outlined"
-              label="Duración (min)"
-              placeholder="60"
-              value={form.duration_mins}
-              onChangeText={(t) => updateWorkoutField('duration_mins', filterInteger(t))}
-              keyboardType="numeric"
-              returnKeyType="done"
-              left={<TextInput.Icon icon="timer-outline" color={SILVER} />}
-              style={s.cardInput}
-              theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
-              outlineStyle={OUTLINE_STYLE}
-              textColor={WHITE}
-            />
+            <View style={s.inputGroup}>
+              <Text style={s.inputLabel}>Duración (min)</Text>
+              <TextInput
+                mode="outlined"
+                placeholder="60"
+                value={form.duration_mins}
+                onChangeText={(t) => updateWorkoutField('duration_mins', filterInteger(t))}
+                keyboardType="numeric"
+                returnKeyType="done"
+                left={<TextInput.Icon icon="timer-outline" color={SILVER} />}
+                style={s.cardInput}
+                theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
+                outlineStyle={OUTLINE_STYLE}
+                textColor={WHITE}
+              />
+            </View>
 
-            <TextInput
-              mode="outlined"
-              label="Notas"
-              placeholder="Deload..."
-              value={form.notes}
-              onChangeText={(t) => updateWorkoutField('notes', t)}
-              multiline
-              numberOfLines={2}
-              left={<TextInput.Icon icon="note-text-outline" color={SILVER} />}
-              style={[s.cardInput, { marginBottom: 0 }]}
-              theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
-              outlineStyle={OUTLINE_STYLE}
-              textColor={WHITE}
-            />
+            <View style={[s.inputGroup, { marginBottom: 0 }]}>
+              <Text style={s.inputLabel}>Notas</Text>
+              <TextInput
+                mode="outlined"
+                placeholder="Deload..."
+                value={form.notes}
+                onChangeText={(t) => updateWorkoutField('notes', t)}
+                multiline
+                numberOfLines={2}
+                left={<TextInput.Icon icon="note-text-outline" color={SILVER} />}
+                style={[s.cardInput, { height: 72 }]}
+                theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
+                outlineStyle={OUTLINE_STYLE}
+                textColor={WHITE}
+              />
+            </View>
           </View>
 
           {/* ═══ Exercises Section ═══ */}
@@ -728,8 +768,6 @@ export default function NewWorkoutScreen() {
             <MaterialCommunityIcons name="plus" size={18} color={CYBER} />
             <Text style={s.addExerciseText}>AÑADIR EJERCICIO</Text>
           </Pressable>
-
-
 
           <View style={{ height: 32 }} />
         </ScrollView>
@@ -779,9 +817,21 @@ const s = StyleSheet.create({
   },
 
   // ── Info Card ────────────────────────────────────────────────────────────────
-  cardInput: {
-    backgroundColor: 'transparent',
+  inputGroup: {
     marginBottom: 16,
+  },
+  inputLabel: {
+    color: SILVER,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    marginBottom: 6,
+    marginLeft: 2,
+    textTransform: 'uppercase',
+  },
+  cardInput: {
+    backgroundColor: CARD_BG,
+    height: 52,
   },
   dateRow: {
     flexDirection: 'row',
@@ -797,6 +847,7 @@ const s = StyleSheet.create({
     fontWeight: '600',
     fontFamily: 'SpaceMono',
     textTransform: 'capitalize',
+    marginLeft: 2,
   },
 
   // ── Exercises header ─────────────────────────────────────────────────────────
@@ -887,7 +938,8 @@ const s = StyleSheet.create({
   },
   setField: {
     width: 100,
-    backgroundColor: 'transparent',
+    backgroundColor: CARD_BG,
+    height: 40,
   },
   removeIcon: {
     width: 20,

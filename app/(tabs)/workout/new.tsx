@@ -1,6 +1,5 @@
 import { useExerciseSuggestions } from '@/src/hooks/useExerciseSuggestions';
 import { useShake } from '@/src/hooks/useShake';
-import { ExercisePayload, SetEntry } from '@/src/services/workoutService';
 import { useAppStore } from '@/src/store/useAppStore';
 import { useShadowSyncStore } from '@/src/store/useShadowSyncStore';
 import { useWorkoutStore } from '@/src/store/useWorkoutStore';
@@ -963,7 +962,7 @@ const s = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 14,
     gap: 8,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   addExerciseText: {
     fontSize: 12,

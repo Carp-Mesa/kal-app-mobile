@@ -45,5 +45,4 @@ yarn-error.*
 .vscode/*
 
 # Documentos de texto
-FRONTEND.CONTEXT.md
-CONTEXT.md
+LISTA.md

@@ -94,22 +94,63 @@ export const useWorkoutStore = create<WorkoutState>()(
 
       mergeFromServer: (serverLogs) => {
         set((state) => {
-          const mergedMap = new Map(state.logs.map((l) => [l.id, l]));
+          const currentLogs = [...state.logs];
 
           for (const remote of serverLogs) {
-            const local = mergedMap.get(remote.id);
-            if (!local) {
-              mergedMap.set(remote.id, { ...remote, synced: true });
-            } else if (local.synced) {
-              const localUpdated = local.updated_at || '';
-              const remoteUpdated = remote.updated_at || '';
-              if (remoteUpdated > localUpdated) {
-                mergedMap.set(remote.id, { ...remote, synced: true });
+            let localIdx = currentLogs.findIndex((l) => l.id === remote.id);
+
+            if (localIdx === -1) {
+              // Search by duplicate content: same name, date, and duration_mins
+              localIdx = currentLogs.findIndex((l) => 
+                l.name === remote.name &&
+                l.date === remote.date &&
+                l.duration_mins === remote.duration_mins
+              );
+              
+              if (localIdx !== -1) {
+                currentLogs[localIdx] = {
+                  ...currentLogs[localIdx],
+                  id: remote.id,
+                  synced: true,
+                };
+              }
+            }
+
+            if (localIdx === -1) {
+              currentLogs.push({ ...remote, synced: true });
+            } else {
+              const local = currentLogs[localIdx];
+              if (local.synced) {
+                const localUpdated = local.updated_at || '';
+                const remoteUpdated = remote.updated_at || '';
+                if (remoteUpdated > localUpdated) {
+                  currentLogs[localIdx] = { ...remote, synced: true };
+                }
               }
             }
           }
 
-          return { logs: Array.from(mergedMap.values()) };
+          // Self-healing: Deduplicate the entire array to clean up any past legacy duplicates
+          const uniqueLogs: WorkoutLog[] = [];
+          for (const log of currentLogs) {
+            const existingIdx = uniqueLogs.findIndex((u) => 
+              u.name === log.name &&
+              u.date === log.date &&
+              u.duration_mins === log.duration_mins
+            );
+
+            if (existingIdx === -1) {
+              uniqueLogs.push(log);
+            } else {
+              if (log.synced && !uniqueLogs[existingIdx].synced) {
+                uniqueLogs[existingIdx] = log;
+              }
+            }
+          }
+
+          uniqueLogs.sort((a, b) => b.date.localeCompare(a.date));
+
+          return { logs: uniqueLogs };
         });
       },
 

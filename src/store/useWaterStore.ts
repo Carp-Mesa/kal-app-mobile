@@ -77,22 +77,62 @@ export const useWaterStore = create<WaterState>()(
       // ── mergeFromServer ────────────────────────────────────────────────────
       mergeFromServer: (serverLogs) => {
         set((state) => {
-          const mergedMap = new Map(state.logs.map((l) => [l.id, l]));
+          const currentLogs = [...state.logs];
 
           for (const remote of serverLogs) {
-            const local = mergedMap.get(remote.id);
-            if (!local) {
-              mergedMap.set(remote.id, { ...remote, synced: true });
-            } else if (local.synced) {
-              const localUpdated = local.updated_at || '';
-              const remoteUpdated = remote.updated_at || '';
-              if (remoteUpdated > localUpdated) {
-                mergedMap.set(remote.id, { ...remote, synced: true });
+            let localIdx = currentLogs.findIndex((l) => l.id === remote.id);
+
+            if (localIdx === -1) {
+              const remoteTime = new Date(remote.created_at).getTime();
+              localIdx = currentLogs.findIndex((l) => {
+                const localTime = new Date(l.created_at).getTime();
+                return l.amount_ml === remote.amount_ml && Math.abs(localTime - remoteTime) < 2000;
+              });
+              
+              if (localIdx !== -1) {
+                currentLogs[localIdx] = {
+                  ...currentLogs[localIdx],
+                  id: remote.id,
+                  synced: true,
+                };
+              }
+            }
+
+            if (localIdx === -1) {
+              currentLogs.push({ ...remote, synced: true });
+            } else {
+              const local = currentLogs[localIdx];
+              if (local.synced) {
+                const localUpdated = local.updated_at || '';
+                const remoteUpdated = remote.updated_at || '';
+                if (remoteUpdated > localUpdated) {
+                  currentLogs[localIdx] = { ...remote, synced: true };
+                }
               }
             }
           }
 
-          return { logs: Array.from(mergedMap.values()) };
+          // Self-healing: Deduplicate the entire array to clean up any past legacy duplicates
+          const uniqueLogs: WaterLog[] = [];
+          for (const log of currentLogs) {
+            const time = new Date(log.created_at).getTime();
+            const existingIdx = uniqueLogs.findIndex((u) => 
+              u.amount_ml === log.amount_ml && 
+              Math.abs(new Date(u.created_at).getTime() - time) < 2000
+            );
+
+            if (existingIdx === -1) {
+              uniqueLogs.push(log);
+            } else {
+              if (log.synced && !uniqueLogs[existingIdx].synced) {
+                uniqueLogs[existingIdx] = log;
+              }
+            }
+          }
+
+          uniqueLogs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+          return { logs: uniqueLogs };
         });
       },
 

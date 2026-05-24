@@ -1,8 +1,8 @@
 import { useExerciseSuggestions } from '@/src/hooks/useExerciseSuggestions';
-import { useShake } from '@/src/hooks/useShake';
-import { useAppStore } from '@/src/store/useAppStore';
+import { useProfileStore } from '@/src/store/useProfileStore';
 import { useShadowSyncStore } from '@/src/store/useShadowSyncStore';
 import { useWorkoutStore } from '@/src/store/useWorkoutStore';
+import { useLiveWorkoutStore } from '@/src/store/useLiveWorkoutStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useNavigation } from 'expo-router';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -13,13 +13,13 @@ import {
   ScrollView,
   StyleSheet,
   View,
+  Alert,
+  Vibration,
 } from 'react-native';
-import { Text, TextInput } from 'react-native-paper';
-import { CustomToast } from '@/src/components/CustomToast';
-import Animated from 'react-native-reanimated';
+import { Button, Snackbar, Text, TextInput, useTheme } from 'react-native-paper';
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Design Tokens
+// Design Tokens (Cloned exactly from new.tsx)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const CYBER = '#CCFF00';
@@ -47,49 +47,8 @@ const OUTLINE_STYLE = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Types
-// ═══════════════════════════════════════════════════════════════════════════════
-
-interface SetForm {
-  id: string;
-  reps: string;
-  weight_kg: string;
-}
-
-interface ExerciseForm {
-  id: string;
-  name: string;
-  sets: SetForm[];
-  rpe: string;
-}
-
-interface WorkoutForm {
-  name: string;
-  notes: string;
-  duration_mins: string;
-  exercises: ExerciseForm[];
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // Helpers
 // ═══════════════════════════════════════════════════════════════════════════════
-
-const uid = (): string => Date.now().toString() + Math.random().toString(36).slice(2);
-
-const createEmptySet = (): SetForm => ({ id: uid(), reps: '', weight_kg: '' });
-
-const createInheritedSet = (previous?: SetForm): SetForm => ({
-  id: uid(),
-  reps: previous?.reps ?? '',
-  weight_kg: previous?.weight_kg ?? '',
-});
-
-const createEmptyExercise = (): ExerciseForm => ({
-  id: uid(),
-  name: '',
-  sets: [createEmptySet()],
-  rpe: '',
-});
 
 const getLocalDateString = (): string => {
   const now = new Date();
@@ -105,13 +64,6 @@ const formatDisplayDate = (): string => {
     .replace(/^\w/, c => c.toUpperCase());
 };
 
-const initialForm = (): WorkoutForm => ({
-  name: '',
-  notes: '',
-  duration_mins: '',
-  exercises: [createEmptyExercise()],
-});
-
 const filterInteger = (text: string): string => text.replace(/[^0-9]/g, '');
 const filterDecimal = (text: string): string => {
   let cleaned = text.replace(/[^0-9.]/g, '');
@@ -120,11 +72,26 @@ const filterDecimal = (text: string): string => {
   return cleaned;
 };
 
+const formatStopwatch = (totalSec: number): string => {
+  const hrs = Math.floor(totalSec / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+  
+  const mStr = String(mins).padStart(2, '0');
+  const sStr = String(secs).padStart(2, '0');
+  
+  if (hrs > 0) {
+    const hStr = String(hrs).padStart(2, '0');
+    return `${hStr}:${mStr}:${sStr}`;
+  }
+  return `${mStr}:${sStr}`;
+};
+
 // ═══════════════════════════════════════════════════════════════════════════════
-// SetRow — Data-table row
+// LiveSetRow — Data-table row with completion checkbox
 // ═══════════════════════════════════════════════════════════════════════════════
 
-interface SetRowProps {
+interface LiveSetRowProps {
   setId: string;
   setIndex: number;
   reps: string;
@@ -135,11 +102,9 @@ interface SetRowProps {
   canRemove: boolean;
   isLast: boolean;
   exerciseId: string;
-  hasRepsError?: boolean;
-  hasWeightError?: boolean;
 }
 
-const SetRow = memo(function SetRow({
+const LiveSetRow = memo(function LiveSetRow({
   setId,
   setIndex,
   reps,
@@ -150,9 +115,7 @@ const SetRow = memo(function SetRow({
   canRemove,
   isLast,
   exerciseId,
-  hasRepsError,
-  hasWeightError,
-}: SetRowProps) {
+}: LiveSetRowProps) {
   const [localReps, setLocalReps] = useState(reps);
   const [localWeight, setLocalWeight] = useState(weightKg);
   const repsFocused = useRef(false);
@@ -161,12 +124,9 @@ const SetRow = memo(function SetRow({
   useEffect(() => { if (!repsFocused.current) setLocalReps(reps); }, [reps]);
   useEffect(() => { if (!weightFocused.current) setLocalWeight(weightKg); }, [weightKg]);
 
-  const repsOutlineColor = hasRepsError ? ERROR_RED : BORDER;
-  const weightOutlineColor = hasWeightError ? ERROR_RED : BORDER;
-
   return (
     <View style={s.setTableRow}>
-      {/* Serie number — non-editable */}
+      {/* Serie index number */}
       <Text style={s.serieLabel}>{setIndex + 1}</Text>
 
       {/* REPS input */}
@@ -184,10 +144,9 @@ const SetRow = memo(function SetRow({
         onFocus={() => { repsFocused.current = true; }}
         onBlur={() => { repsFocused.current = false; setLocalReps(reps); }}
         keyboardType="numeric"
-        returnKeyType="next"
         style={s.setField}
-        theme={{ colors: { primary: hasRepsError ? ERROR_RED : CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
-        outlineStyle={{ ...OUTLINE_STYLE, borderColor: repsOutlineColor }}
+        theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
+        outlineStyle={OUTLINE_STYLE}
         textColor={WHITE}
       />
 
@@ -206,10 +165,9 @@ const SetRow = memo(function SetRow({
         onFocus={() => { weightFocused.current = true; }}
         onBlur={() => { weightFocused.current = false; setLocalWeight(weightKg); }}
         keyboardType="decimal-pad"
-        returnKeyType="done"
         style={s.setField}
-        theme={{ colors: { primary: hasWeightError ? ERROR_RED : CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
-        outlineStyle={{ ...OUTLINE_STYLE, borderColor: weightOutlineColor }}
+        theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
+        outlineStyle={OUTLINE_STYLE}
         textColor={WHITE}
       />
 
@@ -220,20 +178,20 @@ const SetRow = memo(function SetRow({
         </Pressable>
       ) : canRemove ? (
         <Pressable onPress={() => onRemoveSet(exerciseId, setId)} hitSlop={8} style={s.removeIcon}>
-          <MaterialCommunityIcons name="close-circle-outline" size={16} color={MUTED} />
+          <MaterialCommunityIcons name="close-circle-outline" size={16} color={SILVER} />
         </Pressable>
       ) : (
-        <View style={{ width: 16 }} />
+        <View style={{ width: 20 }} />
       )}
     </View>
   );
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// RPE Selector
+// LiveRpeSelector Component
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const RPE_SELECTOR = memo(function RpeSelector({
+const LiveRpeSelector = memo(function LiveRpeSelector({
   value,
   onChange,
 }: {
@@ -262,38 +220,32 @@ const RPE_SELECTOR = memo(function RpeSelector({
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ExerciseCard
+// LiveExerciseCard Component
 // ═══════════════════════════════════════════════════════════════════════════════
 
-interface ExerciseCardProps {
-  exercise: ExerciseForm;
-  exerciseId: string;
+interface LiveExerciseCardProps {
+  exercise: any;
   index: number;
+  suggestions: string[];
   onUpdateExercise: (id: string, field: 'name' | 'rpe', value: string) => void;
   onUpdateSet: (exerciseId: string, setId: string, field: 'reps' | 'weight_kg', value: string) => void;
   onAddSet: (exerciseId: string) => void;
   onRemoveSet: (exerciseId: string, setId: string) => void;
   onRemoveExercise: (id: string) => void;
   canRemove: boolean;
-  suggestions: string[];
-  hasNameError?: boolean;
-  invalidSetIds?: { reps?: string[]; weight?: string[] };
 }
 
-const ExerciseCard = memo(function ExerciseCard({
+const LiveExerciseCard = memo(function LiveExerciseCard({
   exercise,
-  exerciseId,
   index,
+  suggestions,
   onUpdateExercise,
   onUpdateSet,
   onAddSet,
   onRemoveSet,
   onRemoveExercise,
   canRemove,
-  suggestions,
-  hasNameError,
-  invalidSetIds,
-}: ExerciseCardProps) {
+}: LiveExerciseCardProps) {
   const [nameFocused, setNameFocused] = useState(false);
   const [localName, setLocalName] = useState(exercise.name);
   const nameFocusedRef = useRef(false);
@@ -311,17 +263,18 @@ const ExerciseCard = memo(function ExerciseCard({
 
   const showSuggestions = nameFocused && exercise.name.trim().length > 0 && filteredSuggestions.length > 0;
 
-  const totalVolume = exercise.sets.reduce((sum, s) => {
-    const r = Number(s.reps) || 0;
-    const w = parseFloat(s.weight_kg) || 0;
-    return sum + r * w;
-  }, 0);
-
-  const nameOutlineColor = hasNameError ? ERROR_RED : BORDER;
+  // Real-time completed sets volume compilation (calculated automatically from valid sets)
+  const totalVolume = useMemo(() => {
+    return exercise.sets.reduce((sum: number, s: any) => {
+      const r = Number(s.reps) || 0;
+      const w = parseFloat(s.weight_kg) || 0;
+      return sum + r * w;
+    }, 0);
+  }, [exercise.sets]);
 
   return (
     <View style={s.exerciseCard}>
-      {/* Header — Delete on right */}
+      {/* Card Header */}
       <View style={s.exerciseCardHeader}>
         <View style={{ flex: 1 }}>
           <View style={s.inputGroup}>
@@ -333,7 +286,7 @@ const ExerciseCard = memo(function ExerciseCard({
               onChangeText={(t) => {
                 setLocalName(t);
                 nameFocusedRef.current = true;
-                onUpdateExercise(exerciseId, 'name', t);
+                onUpdateExercise(exercise.id, 'name', t);
               }}
               onFocus={() => { setNameFocused(true); nameFocusedRef.current = true; }}
               onBlur={() => {
@@ -345,21 +298,21 @@ const ExerciseCard = memo(function ExerciseCard({
               autoCapitalize="words"
               returnKeyType="done"
               style={{ backgroundColor: CARD_BG, height: 52 }}
-              theme={{ colors: { primary: hasNameError ? ERROR_RED : CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
-              outlineStyle={{ ...OUTLINE_STYLE, borderColor: nameOutlineColor }}
+              theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
+              outlineStyle={OUTLINE_STYLE}
               textColor={WHITE}
             />
           </View>
         </View>
 
         {canRemove && (
-          <Pressable onPress={() => onRemoveExercise(exerciseId)} hitSlop={10} style={{ paddingLeft: 12, marginTop: 22 }}>
+          <Pressable onPress={() => onRemoveExercise(exercise.id)} hitSlop={10} style={{ paddingLeft: 12, marginTop: 22 }}>
             <MaterialCommunityIcons name="trash-can-outline" size={18} color={MUTED} />
           </Pressable>
         )}
       </View>
 
-      {/* Suggestions */}
+      {/* Suggestions Overlay */}
       {showSuggestions && (
         <View style={s.suggestionsWrap}>
           {filteredSuggestions.map((sug) => (
@@ -367,7 +320,7 @@ const ExerciseCard = memo(function ExerciseCard({
               key={sug}
               onPress={() => {
                 justSelectedRef.current = true;
-                onUpdateExercise(exerciseId, 'name', sug);
+                onUpdateExercise(exercise.id, 'name', sug);
                 setLocalName(sug);
                 setNameFocused(false);
               }}
@@ -379,17 +332,19 @@ const ExerciseCard = memo(function ExerciseCard({
         </View>
       )}
 
-      {/* Sets table */}
+      {/* Sets Table */}
       <View style={s.setTable}>
+        {/* Table Header aligned with checkbox-free columns */}
         <View style={s.setTableHeader}>
           <Text style={[s.setTableHeaderText, { flex: 0.6 }]}>SERIE</Text>
           <Text style={[s.setTableHeaderText, { flex: 1, textAlign: 'left' }]}>REPS</Text>
           <Text style={[s.setTableHeaderText, { flex: 1, textAlign: 'left' }]}>KG</Text>
-          <View style={{ width: 16 }} />
+          <View style={{ width: 20 }} />
         </View>
 
-        {exercise.sets.map((setItem, sIdx) => (
-          <SetRow
+        {/* Set rows */}
+        {exercise.sets.map((setItem: any, sIdx: number) => (
+          <LiveSetRow
             key={setItem.id}
             setId={setItem.id}
             setIndex={sIdx}
@@ -400,20 +355,18 @@ const ExerciseCard = memo(function ExerciseCard({
             onAddSet={onAddSet}
             canRemove={exercise.sets.length > 1}
             isLast={sIdx === exercise.sets.length - 1}
-            exerciseId={exerciseId}
-            hasRepsError={invalidSetIds?.reps?.includes(setItem.id)}
-            hasWeightError={invalidSetIds?.weight?.includes(setItem.id)}
+            exerciseId={exercise.id}
           />
         ))}
       </View>
 
       {/* RPE Selector */}
-      <RPE_SELECTOR
+      <LiveRpeSelector
         value={exercise.rpe}
-        onChange={(v) => onUpdateExercise(exerciseId, 'rpe', v)}
+        onChange={(v) => onUpdateExercise(exercise.id, 'rpe', v)}
       />
 
-      {/* Volume badge */}
+      {/* Volume Badge */}
       {totalVolume > 0 && (
         <View style={s.volumeBadge}>
           <Text style={s.volumeText}>VOL {totalVolume.toLocaleString('es-CO')} kg</Text>
@@ -424,22 +377,18 @@ const ExerciseCard = memo(function ExerciseCard({
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Screen
+// LiveWorkoutScreen component
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export default function NewWorkoutScreen() {
-  const addWorkout = useWorkoutStore((state) => state.addWorkout);
-  const scrollRef = useRef<ScrollView>(null);
+export default function LiveWorkoutScreen() {
+  const theme = useTheme();
   const navigation = useNavigation();
-  const hasBeenLeftRef = useRef(false);
+  const addWorkout = useWorkoutStore((state) => state.addWorkout);
+  const profile = useProfileStore((state) => state.profile);
+  
+  // Live workout hooks
+  const live = useLiveWorkoutStore();
   const { data: rawSuggestions = [] } = useExerciseSuggestions();
-  const { shake, animatedStyle } = useShake();
-
-  // ── Workout store integration ─────────────────────────────────────────────
-  const triggerSaveWorkout = useAppStore(state => state.triggerSaveWorkout);
-  const setModalValidationError = useAppStore(state => state.setModalValidationError);
-  const triggerRef = useRef(triggerSaveWorkout);
-  const handleSaveRef = useRef<() => Promise<void>>(async () => { });
 
   const suggestions = useMemo(() => {
     return (rawSuggestions as any[]).map((s) =>
@@ -447,218 +396,164 @@ export default function NewWorkoutScreen() {
     );
   }, [rawSuggestions]);
 
-  const [form, setForm] = useState<WorkoutForm>(initialForm);
-  const [isSaving, setIsSaving] = useState(false);
-  const [snackbar, setSnackbar] = useState({ visible: false, message: '' });
-  const [validationErrors, setValidationErrors] = useState<{
-    exerciseNameIds: string[];
-    setRepsIds: string[];
-    setWeightIds: string[];
-  }>({ exerciseNameIds: [], setRepsIds: [], setWeightIds: [] });
+  // Read config timer from profile. Default = 90 seconds (1:30 min)
+  const restConfigSeconds = profile?.rest_time_seconds || 90;
 
-  // Automatically reset and dismiss the screen when returning (focusing) after being away, only if no fields were filled
+
+
+  // Dynamic StopWatch ticks
   useEffect(() => {
-    const unsubscribeBlur = navigation.addListener('blur', () => {
-      hasBeenLeftRef.current = true;
-    });
-
-    const unsubscribeFocus = navigation.addListener('focus', () => {
-      if (hasBeenLeftRef.current) {
-        hasBeenLeftRef.current = false;
-
-        const hasName = form.name.trim().length > 0;
-        const hasNotes = form.notes.trim().length > 0;
-        const hasDuration = form.duration_mins.trim().length > 0;
-        const hasAnyExerciseData = form.exercises.some(ex => {
-          if (ex.name.trim().length > 0) return true;
-          return ex.sets.some(s => s.reps.trim().length > 0 || s.weight_kg.trim().length > 0);
-        });
-
-        if (!hasName && !hasNotes && !hasDuration && !hasAnyExerciseData) {
-          setForm(initialForm());
-          router.replace('/(tabs)/workout');
-        }
-      }
-    });
-
-    return () => {
-      unsubscribeBlur();
-      unsubscribeFocus();
-    };
-  }, [navigation, form]);
-
-  // ── Compute validation state continuously ─────────────────────────────────
-  const { isFormValid, firstInvalidExerciseId } = useMemo(() => {
-    const exerciseNameIds: string[] = [];
-    const setRepsIds: string[] = [];
-    const setWeightIds: string[] = [];
-
-    if (!form.name.trim()) return { isFormValid: false, firstInvalidExerciseId: null };
-    if (form.exercises.length === 0) return { isFormValid: false, firstInvalidExerciseId: null };
-
-    let firstInvalidId: string | null = null;
-
-    for (const ex of form.exercises) {
-      if (!ex.name.trim()) {
-        exerciseNameIds.push(ex.id);
-        if (!firstInvalidId) firstInvalidId = ex.id;
-      }
-      if (ex.sets.length === 0) {
-        if (!firstInvalidId) firstInvalidId = ex.id;
-      }
-      for (const setItem of ex.sets) {
-        const repsNum = Number(setItem.reps) || 0;
-        const weightNum = parseFloat(setItem.weight_kg) || 0;
-        if (repsNum <= 0) {
-          setRepsIds.push(setItem.id);
-          if (!firstInvalidId) firstInvalidId = ex.id;
-        }
-        if (weightNum < 0) {
-          setWeightIds.push(setItem.id);
-          if (!firstInvalidId) firstInvalidId = ex.id;
-        }
-      }
+    let interval: any;
+    if (live.isActive) {
+      interval = setInterval(() => {
+        live.tickSecond();
+      }, 1000);
     }
+    return () => clearInterval(interval);
+  }, [live.isActive]);
 
-    const valid = exerciseNameIds.length === 0 && setRepsIds.length === 0 && setWeightIds.length === 0;
-    return { isFormValid: valid, firstInvalidExerciseId: firstInvalidId };
-  }, [form]);
-
+  // Dynamic RestTimer ticks
   useEffect(() => {
-    setModalValidationError(!isFormValid);
-  }, [isFormValid, setModalValidationError]);
-
-  useEffect(() => {
-    setValidationErrors({ exerciseNameIds: [], setRepsIds: [], setWeightIds: [] });
-  }, [form]);
-
-  // ── Listen for save trigger from tab bar ──────────────────────────────────
-  useEffect(() => {
-    if (triggerSaveWorkout !== triggerRef.current) {
-      triggerRef.current = triggerSaveWorkout;
-      if (triggerSaveWorkout > 0) {
-        handleSaveRef.current();
-      }
+    let interval: any;
+    if (live.restTimer.isActive) {
+      interval = setInterval(() => {
+        live.tickRestTimer();
+      }, 1000);
     }
-  }, [triggerSaveWorkout]);
+    return () => clearInterval(interval);
+  }, [live.restTimer.isActive]);
 
-  const updateWorkoutField = useCallback(
-    (field: keyof Pick<WorkoutForm, 'name' | 'notes' | 'duration_mins'>, value: string) => {
-      setForm((prev) => ({ ...prev, [field]: value }));
-    },
-    [],
-  );
-
-  const updateExerciseField = useCallback((id: string, field: 'name' | 'rpe', value: string) => {
-    setForm((prev) => ({
-      ...prev,
-      exercises: prev.exercises.map((ex) => (ex.id === id ? { ...ex, [field]: value } : ex)),
-    }));
-  }, []);
-
-  const updateSetField = useCallback(
-    (exerciseId: string, setId: string, field: 'reps' | 'weight_kg', value: string) => {
-      setForm((prev) => ({
-        ...prev,
-        exercises: prev.exercises.map((ex) =>
-          ex.id === exerciseId
-            ? { ...ex, sets: ex.sets.map((s) => (s.id === setId ? { ...s, [field]: value } : s)) }
-            : ex,
-        ),
-      }));
-    },
-    [],
-  );
-
-  const addSet = useCallback((exerciseId: string) => {
-    setForm((prev) => ({
-      ...prev,
-      exercises: prev.exercises.map((ex) => {
-        if (ex.id !== exerciseId) return ex;
-        const lastSet = ex.sets[ex.sets.length - 1];
-        return { ...ex, sets: [...ex.sets, createInheritedSet(lastSet)] };
-      }),
-    }));
-  }, []);
-
-  const removeSet = useCallback((exerciseId: string, setId: string) => {
-    setForm((prev) => ({
-      ...prev,
-      exercises: prev.exercises.map((ex) =>
-        ex.id === exerciseId ? { ...ex, sets: ex.sets.filter((s) => s.id !== setId) } : ex,
-      ),
-    }));
-  }, []);
-
-  const addExercise = useCallback(() => {
-    setForm((prev) => ({ ...prev, exercises: [...prev.exercises, createEmptyExercise()] }));
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
-  }, []);
-
-  const removeExercise = useCallback((id: string) => {
-    setForm((prev) => ({ ...prev, exercises: prev.exercises.filter((ex) => ex.id !== id) }));
-  }, []);
-
-  const computeValidationErrors = () => {
-    const exerciseNameIds: string[] = [];
-    const setRepsIds: string[] = [];
-    const setWeightIds: string[] = [];
-
-    for (const ex of form.exercises) {
-      if (!ex.name.trim()) exerciseNameIds.push(ex.id);
-      for (const setItem of ex.sets) {
-        const repsNum = Number(setItem.reps) || 0;
-        const weightNum = parseFloat(setItem.weight_kg) || 0;
-        if (repsNum <= 0) setRepsIds.push(setItem.id);
-        if (weightNum < 0) setWeightIds.push(setItem.id);
-      }
+  // Trigger vibration when RestTimer completes
+  useEffect(() => {
+    if (live.restTimer.isActive && live.restTimer.remaining === 0) {
+      // Complete! Vibrate twice to warn user resting period ended
+      Vibration.vibrate([0, 400, 150, 400]);
     }
-    return { exerciseNameIds, setRepsIds, setWeightIds };
+  }, [live.restTimer.remaining, live.restTimer.isActive]);
+
+  // Form modification callbacks
+  const handleUpdateExercise = useCallback((id: string, field: 'name' | 'rpe', value: string) => {
+    live.updateExerciseField(id, field, value);
+  }, []);
+
+  const handleUpdateSet = useCallback((exId: string, setId: string, field: 'reps' | 'weight_kg', value: string) => {
+    live.updateSetField(exId, setId, field, value);
+  }, []);
+
+  // Confirm cancel dialog
+  const handleCancelWorkout = () => {
+    Alert.alert(
+      '¿Cancelar Entrenamiento?',
+      'Se perderá todo el progreso de la sesión en curso. Esta acción no se puede deshacer.',
+      [
+        { text: 'Continuar entrenando', style: 'cancel' },
+        { 
+          text: 'Sí, cancelar', 
+          style: 'destructive',
+          onPress: () => {
+            live.cancelWorkout();
+            router.replace('/(tabs)/workout');
+          }
+        }
+      ]
+    );
   };
 
-  const handleSave = async () => {
-    const errs = computeValidationErrors();
-    const hasErrors = errs.exerciseNameIds.length > 0 || errs.setRepsIds.length > 0 || errs.setWeightIds.length > 0;
-
-    if (hasErrors) {
-      setValidationErrors(errs);
-      shake();
-      if (firstInvalidExerciseId) {
-        setTimeout(() => {
-          const idx = form.exercises.findIndex((ex) => ex.id === firstInvalidExerciseId);
-          if (idx >= 0 && scrollRef.current) {
-            scrollRef.current.scrollTo({ y: idx * 400, animated: true });
-          }
-        }, 100);
+  // Complete and log workout
+  const handleFinishWorkout = () => {
+    // 1. Validations: Make sure at least one set is completed
+    let hasAnyCompleted = false;
+    for (const ex of live.exercises) {
+      for (const s of ex.sets) {
+        if (Number(s.reps) > 0) {
+          hasAnyCompleted = true;
+          break;
+        }
       }
+    }
+
+    if (!hasAnyCompleted) {
+      Alert.alert(
+        'Entrenamiento vacío',
+        'Por favor, registra al menos una serie con repeticiones para poder guardar tu entrenamiento.'
+      );
       return;
     }
 
-    setValidationErrors({ exerciseNameIds: [], setRepsIds: [], setWeightIds: [] });
+    // 2. Filter exercises and sets that have been logged
+    const exercisesPayload = live.exercises
+      .filter(ex => ex.name.trim().length > 0)
+      .map(ex => ({
+        name: ex.name.trim(),
+        sets: ex.sets
+          .filter(s => Number(s.reps) > 0)
+          .map(s => ({
+            reps: Number(s.reps) || 0,
+            weight_kg: parseFloat(s.weight_kg) || 0,
+          })),
+        ...(ex.rpe && { rpe: Number(ex.rpe) || undefined }),
+      }))
+      .filter(ex => ex.sets.length > 0);
 
-    // ── LOCAL-FIRST: Write to Zustand store synchronously ────────────
-    const exercisesPayload = form.exercises.map((ex) => ({
-      name: ex.name.trim(),
-      sets: ex.sets.map((s) => ({
-        reps: Number(s.reps) || 0,
-        weight_kg: parseFloat(s.weight_kg) || 0,
-      })),
-      ...(ex.rpe && { rpe: Number(ex.rpe) || undefined }),
-    }));
+    if (exercisesPayload.length === 0) {
+      Alert.alert('Datos incompletos', 'Asegúrate de llenar las repeticiones y el peso de las series.');
+      return;
+    }
 
+    // 3. Compile automatic report notes + append custom comments
+    const finalReport = live.generateReportNotes();
+
+    // 4. Save workout log local-first
+    const elapsedMins = Math.round(live.elapsedSeconds / 60) || 1;
     addWorkout({
-      name: form.name.trim(),
+      name: live.name.trim() || 'Entrenamiento en Vivo',
       date: getLocalDateString(),
-      notes: form.notes.trim() || undefined,
-      duration_mins: Number(form.duration_mins) || 0,
+      duration_mins: elapsedMins,
+      notes: finalReport,
       exercises: exercisesPayload,
     });
 
+    // 5. Sync to backend
     queueMicrotask(() => useShadowSyncStore.getState().enqueueSync());
 
-    router.back();
+    // 6. Reset live store
+    live.finishWorkout();
+
+    // 7. Success dialog and return
+    Alert.alert('¡Excelente Trabajo! 🏆', 'Entrenamiento registrado con éxito. ¡Sigue superándote!');
+    router.replace('/(tabs)/workout');
   };
-  handleSaveRef.current = handleSave;
+
+  // If no session is currently active, show a beautiful, clean launch screen that matches CARD_STYLE perfectly.
+  // The user can intentionally trigger the stopwatch and tracking from here.
+  if (!live.isActive) {
+    return (
+      <View style={[s.root, { justifyContent: 'center' }]}>
+        <View style={[CARD_STYLE, { marginHorizontal: PAD, alignItems: 'center', paddingVertical: 40 }]}>
+          <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(204, 255, 0, 0.15)', justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
+            <MaterialCommunityIcons name="lightning-bolt" size={36} color={CYBER} />
+          </View>
+          <Text style={[s.screenTitle, { fontSize: 18, color: WHITE, marginBottom: 12, textAlign: 'center', fontWeight: '800' }]}>
+            Entrenamiento en Vivo
+          </Text>
+          <Text style={{ color: SILVER, fontSize: 13, lineHeight: 20, textAlign: 'center', marginBottom: 24, paddingHorizontal: 10 }}>
+            Prepara tu mente y calienta tus músculos. Presiona el botón para iniciar el cronómetro dinámico y registrar tus series en tiempo real.
+          </Text>
+          <Button
+            mode="contained"
+            icon="play"
+            buttonColor={CYBER}
+            textColor={BLACK}
+            onPress={() => live.startWorkout('Sesión en Vivo')}
+            style={{ borderRadius: 14, height: 50, width: '90%', justifyContent: 'center' }}
+            labelStyle={{ fontWeight: '800', fontSize: 14, letterSpacing: 1 }}
+          >
+            INICIAR ENTRENAMIENTO
+          </Button>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={s.root}>
@@ -668,65 +563,110 @@ export default function NewWorkoutScreen() {
         keyboardVerticalOffset={80}
       >
         <ScrollView
-          ref={scrollRef}
           contentContainerStyle={s.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-
-          {/* ═══ Info Card (Profile-style) ═══ */}
+          {/* ═══ Info Card (Profile-style - Identical to new.tsx) ═══ */}
           <View style={CARD_STYLE}>
-            <Text style={s.screenTitle}>Registra tu entrenamiento</Text>
-            <View style={s.dateRow}>
-              <MaterialCommunityIcons name="calendar-today" size={14} color={SILVER} />
-              <Text style={s.dateText}>{formatDisplayDate()}</Text>
+            <Text style={s.screenTitle}>Sesión en Vivo ⚡</Text>
+
+            {/* Stopwatch & Calendar Date Info Row */}
+            <View style={s.timerHeaderRow}>
+              <View style={s.dateRow}>
+                <MaterialCommunityIcons name="calendar-today" size={14} color={SILVER} />
+                <Text style={s.dateText}>{formatDisplayDate()}</Text>
+              </View>
+              <View style={s.stopwatchContainer}>
+                <MaterialCommunityIcons name="timer-outline" size={16} color={CYBER} style={{ marginRight: 6 }} />
+                <Text style={s.stopwatchText}>{formatStopwatch(live.elapsedSeconds)}</Text>
+              </View>
             </View>
 
+            {/* Custom Rest Timer countdown launch trigger */}
+            <View style={{ marginBottom: 16 }}>
+              <Text style={s.inputLabel}>Iniciar Descanso</Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Button
+                  mode="contained"
+                  buttonColor="rgba(204, 255, 0, 0.08)"
+                  textColor={CYBER}
+                  onPress={() => live.startRestTimer(60)}
+                  style={{ flex: 1, borderRadius: 12, height: 42, justifyContent: 'center', borderColor: 'rgba(204, 255, 0, 0.25)', borderWidth: 1 }}
+                  labelStyle={{ fontWeight: '800', fontSize: 11 }}
+                  disabled={live.restTimer.isActive}
+                >
+                  1 MIN ⏱️
+                </Button>
+                <Button
+                  mode="contained"
+                  buttonColor="rgba(204, 255, 0, 0.08)"
+                  textColor={CYBER}
+                  onPress={() => live.startRestTimer(120)}
+                  style={{ flex: 1, borderRadius: 12, height: 42, justifyContent: 'center', borderColor: 'rgba(204, 255, 0, 0.25)', borderWidth: 1 }}
+                  labelStyle={{ fontWeight: '800', fontSize: 11 }}
+                  disabled={live.restTimer.isActive}
+                >
+                  2 MIN ⏱️
+                </Button>
+                <Button
+                  mode="contained"
+                  buttonColor="rgba(204, 255, 0, 0.08)"
+                  textColor={CYBER}
+                  onPress={() => live.startRestTimer(180)}
+                  style={{ flex: 1, borderRadius: 12, height: 42, justifyContent: 'center', borderColor: 'rgba(204, 255, 0, 0.25)', borderWidth: 1 }}
+                  labelStyle={{ fontWeight: '800', fontSize: 11 }}
+                  disabled={live.restTimer.isActive}
+                >
+                  3 MIN ⏱️
+                </Button>
+              </View>
+            </View>
+
+            {/* Live Rest Countdowns */}
+            {live.restTimer.isActive && (
+              <View style={s.restOverlay}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <MaterialCommunityIcons name="timer-sand" size={20} color={CYBER} style={s.pulsatingTimer} />
+                  <View>
+                    <Text style={s.restLabel}>DESCANSO ACTIVADO</Text>
+                    <Text style={s.restValue}>{live.restTimer.remaining}s restantes</Text>
+                  </View>
+                </View>
+                <Pressable onPress={() => live.stopRestTimer()} style={s.skipRestBtn}>
+                  <Text style={s.skipRestText}>OMITIR</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {/* Session Name input */}
             <View style={s.inputGroup}>
               <Text style={s.inputLabel}>Nombre de la sesión</Text>
               <TextInput
                 mode="outlined"
-                placeholder="Push Day"
-                value={form.name}
-                onChangeText={(t) => updateWorkoutField('name', t)}
-                autoCapitalize="words"
-                returnKeyType="next"
+                value={live.name}
+                onChangeText={(t) => live.updateName(t)}
+                placeholder="Sesión de Fuerza..."
+                style={s.cardInput}
+                theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
+                outlineStyle={OUTLINE_STYLE}
+                textColor={WHITE}
                 left={<TextInput.Icon icon="dumbbell" color={SILVER} />}
-                style={s.cardInput}
-                theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
-                outlineStyle={OUTLINE_STYLE}
-                textColor={WHITE}
               />
             </View>
 
-            <View style={s.inputGroup}>
-              <Text style={s.inputLabel}>Duración (min)</Text>
-              <TextInput
-                mode="outlined"
-                placeholder="60"
-                value={form.duration_mins}
-                onChangeText={(t) => updateWorkoutField('duration_mins', filterInteger(t))}
-                keyboardType="numeric"
-                returnKeyType="done"
-                left={<TextInput.Icon icon="timer-outline" color={SILVER} />}
-                style={s.cardInput}
-                theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
-                outlineStyle={OUTLINE_STYLE}
-                textColor={WHITE}
-              />
-            </View>
-
+            {/* Compiled Live Report Notes block */}
             <View style={[s.inputGroup, { marginBottom: 0 }]}>
-              <Text style={s.inputLabel}>Notas</Text>
+              <Text style={s.inputLabel}>Notas de la sesión</Text>
               <TextInput
                 mode="outlined"
-                placeholder="En mi primer serie..."
-                value={form.notes}
-                onChangeText={(t) => updateWorkoutField('notes', t)}
+                placeholder="Las notas del entrenamiento se autogeneran por serie..."
+                value={live.notes}
+                onChangeText={(t) => live.updateNotes(t)}
                 multiline
-                numberOfLines={2}
+                numberOfLines={4}
                 left={<TextInput.Icon icon="note-text-outline" color={SILVER} />}
-                style={[s.cardInput, { height: 72 }]}
+                style={[s.cardInput, { height: 120, textAlign: 'center' }]}
                 theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
                 outlineStyle={OUTLINE_STYLE}
                 textColor={WHITE}
@@ -737,54 +677,64 @@ export default function NewWorkoutScreen() {
           {/* ═══ Exercises Section ═══ */}
           <View style={s.exercisesHeader}>
             <Text style={s.sectionLabel}>
-              EJERCICIOS ({form.exercises.length})
+              EJERCICIOS ({live.exercises.length})
             </Text>
           </View>
 
-          <Animated.View style={animatedStyle}>
-            {form.exercises.map((ex, index) => (
-              <ExerciseCard
-                key={ex.id}
-                exercise={ex}
-                exerciseId={ex.id}
-                index={index}
-                onUpdateExercise={updateExerciseField}
-                onUpdateSet={updateSetField}
-                onAddSet={addSet}
-                onRemoveSet={removeSet}
-                onRemoveExercise={removeExercise}
-                canRemove={form.exercises.length > 1}
-                suggestions={suggestions}
-                hasNameError={validationErrors.exerciseNameIds.includes(ex.id)}
-                invalidSetIds={{
-                  reps: validationErrors.setRepsIds,
-                  weight: validationErrors.setWeightIds,
-                }}
-              />
-            ))}
-          </Animated.View>
+          {live.exercises.map((ex, index) => (
+            <LiveExerciseCard
+              key={ex.id}
+              exercise={ex}
+              index={index}
+              suggestions={suggestions}
+              onUpdateExercise={handleUpdateExercise}
+              onUpdateSet={handleUpdateSet}
+              onAddSet={live.addSet}
+              onRemoveSet={live.removeSet}
+              onRemoveExercise={live.removeExercise}
+              canRemove={live.exercises.length > 1}
+            />
+          ))}
 
-          {/* Añadir Ejercicio */}
-          <Pressable onPress={addExercise} style={s.addExerciseBtn}>
+          {/* Add Exercise trigger */}
+          <Pressable onPress={() => live.addExercise()} style={s.addExerciseBtn}>
             <MaterialCommunityIcons name="plus" size={18} color={CYBER} />
             <Text style={s.addExerciseText}>AÑADIR EJERCICIO</Text>
           </Pressable>
 
-          <View style={{ height: 32 }} />
+          {/* ACTION BUTTONS (Match the gorgeous new styles) */}
+          <View style={{ marginTop: 24, gap: 12 }}>
+            <Button
+              mode="contained"
+              onPress={handleFinishWorkout}
+              buttonColor={CYBER}
+              textColor={BLACK}
+              labelStyle={{ fontWeight: '800', fontSize: 14 }}
+              style={{ borderRadius: 14, height: 50, justifyContent: 'center' }}
+            >
+              FINALIZAR ENTRENAMIENTO
+            </Button>
+
+            <Button
+              mode="outlined"
+              onPress={handleCancelWorkout}
+              textColor={ERROR_RED}
+              style={{ borderRadius: 14, height: 48, borderColor: ERROR_RED, borderWidth: 1.5, justifyContent: 'center' }}
+              labelStyle={{ fontWeight: '700' }}
+            >
+              CANCELAR ENTRENAMIENTO
+            </Button>
+          </View>
+
+          <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
-
-      <CustomToast
-        visible={snackbar.visible}
-        message={snackbar.message}
-        onDismiss={() => setSnackbar({ visible: false, message: '' })}
-      />
     </View>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Styles
+// Styles (Mirrors new.tsx perfectly, with checklist capabilities)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const PAD = 16;
@@ -801,9 +751,6 @@ const s = StyleSheet.create({
   },
 
   // ── Header ───────────────────────────────────────────────────────────────────
-  headerSection: {
-    marginBottom: 24,
-  },
   screenTitle: {
     fontSize: 13,
     fontWeight: '700',
@@ -830,13 +777,18 @@ const s = StyleSheet.create({
     backgroundColor: CARD_BG,
     height: 52,
   },
+  timerHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 16,
+    marginLeft: 2,
+  },
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 8,
-    marginBottom: 12,
-    marginLeft: 2,
   },
   dateText: {
     fontSize: 12,
@@ -844,7 +796,62 @@ const s = StyleSheet.create({
     fontWeight: '600',
     fontFamily: 'SpaceMono',
     textTransform: 'capitalize',
-    marginLeft: 2,
+  },
+  stopwatchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(204, 255, 0, 0.1)',
+    borderColor: 'rgba(204, 255, 0, 0.25)',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  stopwatchText: {
+    fontSize: 13,
+    color: CYBER,
+    fontWeight: '700',
+    fontFamily: 'SpaceMono',
+  },
+
+  // ── Rest Countdown ───────────────────────────────────────────────────────────
+  restOverlay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#0F1D00',
+    borderColor: CYBER,
+    borderWidth: 1.5,
+    borderRadius: 14,
+    width: '100%',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 20,
+  },
+  restLabel: {
+    color: '#88AA00',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+  },
+  restValue: {
+    color: CYBER,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  skipRestBtn: {
+    backgroundColor: 'rgba(204, 255, 0, 0.12)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  skipRestText: {
+    color: CYBER,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  pulsatingTimer: {
+    transform: [{ scale: 1.1 }],
   },
 
   // ── Exercises header ─────────────────────────────────────────────────────────
@@ -923,6 +930,21 @@ const s = StyleSheet.create({
     marginBottom: 8,
     gap: 6,
   },
+  completedRow: {
+    opacity: 0.6,
+  },
+  completedText: {
+    textDecorationLine: 'line-through',
+    color: SILVER,
+  },
+  checkButton: {
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+    marginLeft: 2,
+  },
   serieLabel: {
     fontSize: 14,
     fontWeight: '700',
@@ -934,7 +956,7 @@ const s = StyleSheet.create({
     marginRight: 20,
   },
   setField: {
-    width: 100,
+    width: 90,
     backgroundColor: CARD_BG,
     height: 40,
   },
@@ -1018,19 +1040,5 @@ const s = StyleSheet.create({
     fontWeight: '700',
     color: CYBER,
     letterSpacing: 1.5,
-  },
-
-  // ── Saving banner ────────────────────────────────────────────────────────────
-  savingBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-  },
-  savingText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: CYBER,
   },
 });

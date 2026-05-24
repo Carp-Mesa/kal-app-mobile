@@ -22,6 +22,16 @@ export default function WorkoutLayout() {
         }}
       />
       <Stack.Screen
+        name="live"
+        options={{
+          title: 'Entrenamiento en Vivo',
+          headerShown: true,
+          headerBackTitle: 'Atrás',
+          presentation: 'card',
+          animation: 'slide_from_bottom',
+        }}
+      />
+      <Stack.Screen
         name="history"
         options={{
           title: 'Historial de Entrenamientos',

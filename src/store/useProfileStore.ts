@@ -63,6 +63,7 @@ export function mapApiProfileToStore(apiData: any): Partial<ProfileData> {
     fats_goal: toNumber(apiData.fats_goal),
     water_goal: toNumber(apiData.water_goal),
     sleep_goal: toNumber(apiData.sleep_goal),
+    rest_time_seconds: toNumber(apiData.rest_time_seconds),
   };
 }
 

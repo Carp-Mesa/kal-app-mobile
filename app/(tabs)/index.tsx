@@ -21,12 +21,13 @@ import {
   View,
 } from 'react-native';
 import {
+  Button,
   Card,
   Portal,
-  Snackbar,
   Text,
   useTheme,
 } from 'react-native-paper';
+import { CustomToast } from '@/src/components/CustomToast';
 import Svg, { Circle } from 'react-native-svg';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -181,6 +182,23 @@ const WorkoutStatusCard = memo(function WorkoutStatusCard({ title, currentSessio
           <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 14 }}>Tiempo</Text>
           <Text style={{ color: theme.colors.primary, fontSize: 14 }}>{status}</Text>
         </View>
+
+        {status === 'Pendiente' && (
+          <Button
+            mode="contained"
+            icon="lightning-bolt"
+            buttonColor={theme.colors.primary}
+            textColor={theme.dark ? '#000000' : '#FFFFFF'}
+            onPress={(e) => {
+              e.stopPropagation(); // prevent Card's onPress from routing to the default workouts tab
+              router.push('/(tabs)/workout/live');
+            }}
+            style={{ marginTop: 16, borderRadius: 10 }}
+            labelStyle={{ fontWeight: '800', fontSize: 13 }}
+          >
+            Iniciar Entrenamiento en Vivo
+          </Button>
+        )}
       </Card.Content>
     </Card>
   );
@@ -568,11 +586,11 @@ export default function DashboardScreen() {
         }}
       />
 
-      <Portal>
-        <Snackbar visible={snackbar.visible} onDismiss={() => setSnackbar({ visible: false, message: '' })} duration={3000}>
-          {snackbar.message}
-        </Snackbar>
-      </Portal>
+      <CustomToast
+        visible={snackbar.visible}
+        message={snackbar.message}
+        onDismiss={() => setSnackbar({ visible: false, message: '' })}
+      />
     </View>
   );
 }

@@ -16,12 +16,12 @@ import {
 } from 'react-native';
 import {
   Button,
-  Snackbar,
   Switch,
   Text,
   TextInput,
   useTheme
 } from 'react-native-paper';
+import { CustomToast } from '@/src/components/CustomToast';
 
 type TabType = 'Info Personal' | 'Metas' | 'Ajustes';
 
@@ -97,6 +97,7 @@ export default function ProfileScreen() {
   const [proteinGoal, setProteinGoal] = useState(() => profile?.protein_goal?.toString() ?? '');
   const [carbsGoal, setCarbsGoal] = useState(() => profile?.carbs_goal?.toString() ?? '');
   const [fatsGoal, setFatsGoal] = useState(() => profile?.fats_goal?.toString() ?? '');
+  const [restTimeSeconds, setRestTimeSeconds] = useState(() => profile?.rest_time_seconds?.toString() ?? '90');
 
   // ── LOCAL-FIRST: Profile is read from local store (instant) ────────
   const [isSaving, setIsSaving] = useState(false);
@@ -112,6 +113,7 @@ export default function ProfileScreen() {
       setTargetWeight(profile.weight_goal?.toString() ?? '');
       setWaterGoal(profile.water_goal?.toString() ?? '');
       setCalorieGoal(profile.calorie_goal?.toString() ?? '');
+      setRestTimeSeconds(profile.rest_time_seconds?.toString() ?? '90');
       if (profile.protein_goal || profile.carbs_goal || profile.fats_goal) {
         setProteinGoal(profile.protein_goal?.toString() ?? '');
         setCarbsGoal(profile.carbs_goal?.toString() ?? '');
@@ -487,6 +489,26 @@ export default function ProfileScreen() {
               />
             </View>
 
+            <View style={{ marginBottom: 20 }}>
+              <Text style={[s.inputLabel, { color: labelColor, marginBottom: 8, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' }]}>TIEMPO DE DESCANSO (SEGUNDOS)</Text>
+              <TextInput
+                mode="outlined"
+                placeholder="Ej: 90"
+                value={restTimeSeconds}
+                onChangeText={(text) => {
+                  const filtered = text.replace(/[^0-9]/g, '');
+                  setRestTimeSeconds(filtered);
+                  updateProfileStore({ rest_time_seconds: parseInt(filtered, 10) || 90 });
+                }}
+                keyboardType="numeric"
+                left={<TextInput.Icon icon="timer-sand" color={theme.colors.onSurfaceVariant} />}
+                style={{ backgroundColor: cardBg, height: 52 }}
+                outlineStyle={{ borderRadius: 12, borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1.5 }}
+                textColor={theme.colors.onSurface}
+                theme={{ colors: { primary: theme.colors.primary } }}
+              />
+            </View>
+
             <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.05)', marginBottom: 20 }} />
 
             <TouchableOpacity
@@ -508,14 +530,11 @@ export default function ProfileScreen() {
         )}
 
       </ScrollView>
-      <Snackbar
+      <CustomToast
         visible={snackbar.visible}
+        message={snackbar.message}
         onDismiss={() => setSnackbar({ ...snackbar, visible: false })}
-        duration={3000}
-        style={{ backgroundColor: theme.dark ? '#333' : theme.colors.surfaceVariant }}
-      >
-        <Text style={{ color: theme.colors.onSurface }}>{snackbar.message}</Text>
-      </Snackbar>
+      />
     </KeyboardAvoidingView>
   );
 }

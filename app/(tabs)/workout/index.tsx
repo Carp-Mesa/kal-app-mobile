@@ -208,14 +208,32 @@ export default function WorkoutIndexScreen() {
         <Text variant="bodyMedium" style={[styles.emptySubtitle, { color: theme.colors.onSurfaceVariant }]}>
           Cada gran viaje empieza con un solo paso.{'\n'}¡Ve al gym y registra tu primera rutina!
         </Text>
-        <Button mode="contained" icon="plus" onPress={() => router.push('/(tabs)/workout/new')} style={{ marginTop: 16, borderRadius: 14 }}>
-          Nueva Rutina
-        </Button>
+        <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
+          <Button
+            mode="outlined"
+            icon="lightning-bolt"
+            textColor={theme.colors.primary}
+            style={{ borderRadius: 14, borderColor: theme.colors.primary, borderWidth: 1.5 }}
+            labelStyle={{ fontWeight: '700' }}
+            onPress={() => router.push('/(tabs)/workout/live')}
+          >
+            En Vivo
+          </Button>
+          <Button
+            mode="contained"
+            icon="plus"
+            buttonColor={theme.colors.primary}
+            textColor={theme.dark ? '#000' : '#fff'}
+            style={{ borderRadius: 14 }}
+            labelStyle={{ fontWeight: '700' }}
+            onPress={() => router.push('/(tabs)/workout/new')}
+          >
+            Manual 🏋️
+          </Button>
+        </View>
       </View>
     );
   }
-
-
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -230,6 +248,31 @@ export default function WorkoutIndexScreen() {
             <View style={{ paddingBottom: 16 }}>
               <FilterTabs selected={filter} onSelect={setFilter} theme={theme} />
             </View>
+            
+            <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 16, marginBottom: 16 }}>
+              <Button
+                mode="contained"
+                icon="lightning-bolt"
+                buttonColor={theme.colors.primary}
+                textColor={theme.dark ? '#000000' : '#FFFFFF'}
+                onPress={() => router.push('/(tabs)/workout/live')}
+                style={{ flex: 1, borderRadius: 12 }}
+                labelStyle={{ fontWeight: '800', fontSize: 12 }}
+              >
+                En Vivo
+              </Button>
+              <Button
+                mode="outlined"
+                icon="plus"
+                textColor={theme.colors.onSurface}
+                style={{ flex: 1, borderRadius: 12, borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1.5 }}
+                labelStyle={{ fontWeight: '700', fontSize: 12 }}
+                onPress={() => router.push('/(tabs)/workout/new')}
+              >
+                Manual 🏋️
+              </Button>
+            </View>
+
             <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 13, textAlign: 'center' }}>
               {workouts.length} entrenamientos registrados
             </Text>

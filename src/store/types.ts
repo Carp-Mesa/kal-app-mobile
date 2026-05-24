@@ -72,6 +72,7 @@ export interface ProfileData {
   fats_goal?: number;
   water_goal?: number;
   sleep_goal?: number;
+  rest_time_seconds?: number;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

@@ -13,8 +13,9 @@ import { useSleepWeeklyStats } from '@/src/hooks/useSleepWeeklyStats';
 import { capitalizeName } from '@/src/utils/formatting';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { memo, useMemo, useState } from 'react';
+import React, { memo, useEffect, useMemo, useState } from 'react';
 import {
+  BackHandler,
   Dimensions,
   ScrollView,
   StyleSheet,
@@ -417,6 +418,16 @@ export default function DashboardScreen() {
   const theme = useTheme();
   const modalVisible = useAppStore((state) => state.modalVisible);
   const setModalVisible = useAppStore((state) => state.setModalVisible);
+
+  // ── Hardware Back Button handler to exit app cleanly ────────────────────
+  useEffect(() => {
+    const onBackPress = () => {
+      BackHandler.exitApp();
+      return true;
+    };
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
+  }, []);
 
   // ── LOCAL-FIRST: Select raw arrays (stable refs) — never call functions in selectors ──
   // Calling getTodayTotal() etc. inside a selector returns a new reference every render

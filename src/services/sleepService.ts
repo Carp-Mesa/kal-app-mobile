@@ -1,4 +1,5 @@
 import apiClient from './apiClient';
+import { getLocalDateString } from '../utils/date';
 
 export interface SleepProgressResponse {
   id?: string;
@@ -12,6 +13,6 @@ export interface SleepProgressResponse {
 }
 
 export const getTodaySleep = async (): Promise<SleepProgressResponse> => {
-  const response = await apiClient.get<SleepProgressResponse>('/sleep/progress/today');
+  const response = await apiClient.get<SleepProgressResponse>(`/sleep/progress/today?date=${getLocalDateString()}`);
   return response.data;
 };

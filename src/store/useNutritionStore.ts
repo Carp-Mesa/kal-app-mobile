@@ -68,6 +68,7 @@ export const useNutritionStore = create<NutritionState>()(
           fats: Number(data.fats) || 0,
           is_cheat_meal: data.is_cheat_meal ?? false,
           created_at: now,
+          local_date: getLocalDateString(),
           synced: false,
           updated_at: now,
         };

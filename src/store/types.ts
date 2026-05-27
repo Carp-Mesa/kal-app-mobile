@@ -13,6 +13,7 @@ export interface SyncMeta {
   id: string;
   synced: boolean;
   updated_at: string; // ISO-8601
+  local_date: string; // YYYY-MM-DD
 }
 
 // ─── Domain Entities ─────────────────────────────────────────────────────────
@@ -77,14 +78,8 @@ export interface ProfileData {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/** Returns the local date string in YYYY-MM-DD (device timezone). */
-export function getLocalDateString(date?: Date): string {
-  const d = date ?? new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
+import { getLocalDateString } from '../utils/date';
+export { getLocalDateString };
 
 /**
  * Timezone-safe "is this entry from today?" check.

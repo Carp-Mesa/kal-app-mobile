@@ -76,6 +76,7 @@ function normalizeWorkout(item: any): WorkoutLog {
     duration_mins: Number(item.duration_mins) || 0,
     notes: item.notes,
     exercises,
+    local_date: item.local_date || item.date || getLocalDateString(item.created_at ? new Date(item.created_at) : undefined),
     synced: true,
     updated_at: item.updated_at || new Date().toISOString(),
   };
@@ -86,6 +87,7 @@ function normalizeWater(item: any): WaterLog {
     id: item.id,
     amount_ml: Number(item.amount_ml) || 0,
     created_at: item.created_at || new Date().toISOString(),
+    local_date: item.local_date || getLocalDateString(item.created_at ? new Date(item.created_at) : undefined),
     synced: true,
     updated_at: item.updated_at || new Date().toISOString(),
   };
@@ -101,6 +103,7 @@ function normalizeNutrition(item: any): NutritionLog {
     fats: Number(item.fats) || 0,
     is_cheat_meal: item.is_cheat_meal ?? false,
     created_at: item.created_at || new Date().toISOString(),
+    local_date: item.local_date || getLocalDateString(item.created_at ? new Date(item.created_at) : undefined),
     synced: true,
     updated_at: item.updated_at || new Date().toISOString(),
   };
@@ -113,6 +116,7 @@ function normalizeSleep(item: any): SleepLog {
     end_time: item.end_time,
     date: item.date,
     quality_score: Number(item.quality_score) || 3,
+    local_date: item.local_date || item.date || getLocalDateString(item.start_time ? new Date(item.start_time) : undefined),
     synced: true,
     updated_at: item.updated_at || new Date().toISOString(),
   };
@@ -209,6 +213,7 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
             id: record.id,
             amount_ml: record.amount_ml,
             created_at: record.created_at,
+            local_date: record.local_date || getLocalDateString(new Date(record.created_at)),
           });
           useWaterStore.getState().markSynced(record.id);
           set((s) => ({
@@ -240,6 +245,7 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
             fats: record.fats,
             is_cheat_meal: record.is_cheat_meal,
             created_at: record.created_at,
+            local_date: record.local_date || getLocalDateString(new Date(record.created_at)),
           });
           useNutritionStore.getState().markSynced(record.id);
           set((s) => ({ debugLog: addLog({ timestamp: new Date().toISOString(), domain: 'nutrition', recordId: record.id, status: 'success' }, s.debugLog) }));
@@ -266,6 +272,7 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
             end_time: record.end_time,
             date: record.date,
             quality_score: record.quality_score,
+            local_date: record.local_date || record.date,
           });
           useSleepStore.getState().markSynced(record.id);
           set((s) => ({ debugLog: addLog({ timestamp: new Date().toISOString(), domain: 'sleep', recordId: record.id, status: 'success' }, s.debugLog) }));
@@ -298,6 +305,7 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
               sets: ex.sets,
               rpe: ex.rpe,
             })),
+            local_date: record.local_date || record.date,
           });
           useWorkoutStore.getState().markSynced(record.id);
           set((s) => ({ debugLog: addLog({ timestamp: new Date().toISOString(), domain: 'workout', recordId: record.id, status: 'success' }, s.debugLog) }));

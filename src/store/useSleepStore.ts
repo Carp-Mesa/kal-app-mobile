@@ -74,6 +74,7 @@ export const useSleepStore = create<SleepState>()(
           end_time: data.end_time,
           date: data.date,
           quality_score: Number(data.quality_score) || 3,
+          local_date: getLocalDateString(),
           synced: false,
           updated_at: now,
         };

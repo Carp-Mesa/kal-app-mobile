@@ -51,6 +51,7 @@ export const useWaterStore = create<WaterState>()(
           id: generateId(),
           amount_ml: safeAmount,
           created_at: now,
+          local_date: getLocalDateString(),
           synced: false,
           updated_at: now,
         };

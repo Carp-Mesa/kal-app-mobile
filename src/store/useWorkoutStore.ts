@@ -70,6 +70,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           duration_mins: Number(data.duration_mins) || 0,
           notes: data.notes,
           exercises,
+          local_date: getLocalDateString(),
           synced: false,
           updated_at: now,
         };

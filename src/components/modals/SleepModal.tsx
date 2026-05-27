@@ -4,7 +4,7 @@ import { useLogSleep } from '@/src/hooks/useLogs';
 import { useShake } from '@/src/hooks/useShake';
 import { useAppStore } from '@/src/store/useAppStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { HelperText, Text } from 'react-native-paper';
 import Animated from 'react-native-reanimated';
@@ -184,8 +184,11 @@ export const SleepModal: React.FC<SleepModalProps> = ({ visible, onDismiss, onSu
     setModalValidationError(isInvalid);
   }, [isInvalid, setModalValidationError]);
 
+  // ── Guard ref to prevent double-fire ─────────────────────────────────────
+  const isSavingRef = useRef(false);
+
   const handleSave = useCallback(() => {
-    if (sleepMut.isPending) return;
+    if (sleepMut.isPending || isSavingRef.current) return;
 
     const startHour = parseInt(String(start.hourIndex + 1), 10);
     const startMinute = parseInt(String(start.minuteIndex), 10);
@@ -212,6 +215,7 @@ export const SleepModal: React.FC<SleepModalProps> = ({ visible, onDismiss, onSu
     }
 
     setError('');
+    isSavingRef.current = true;
 
     // Compute start and end Date objects from the picker values.
     // The user picks clock times (e.g., 10PM start → 6AM end).
@@ -246,26 +250,43 @@ export const SleepModal: React.FC<SleepModalProps> = ({ visible, onDismiss, onSu
         setError('');
         onSuccess?.();
         onDismiss();
+        isSavingRef.current = false;
       },
-      onError: () => setError('Error al registrar el sueño.'),
+      onError: () => {
+        setError('Error al registrar el sueño.');
+        isSavingRef.current = false;
+      },
     });
   }, [sleepMut, start, end, qualityScore, onSuccess, onDismiss, shake]);
+
+  // Keep a stable ref to the latest handleSave to avoid re-triggering the
+  // save effect when the callback identity changes (which happens after
+  // form state resets in the success callback).
+  const handleSaveRef = useRef(handleSave);
+  useLayoutEffect(() => {
+    handleSaveRef.current = handleSave;
+  }, [handleSave]);
 
   const lastTriggerRef = useRef(0);
 
   useEffect(() => {
     if (visible) {
       setError('');
+      isSavingRef.current = false;
       lastTriggerRef.current = triggerSaveModal;
     }
   }, [visible]);
 
+  // Listen for external save triggers (from the central ✓ button).
+  // IMPORTANT: we use handleSaveRef instead of handleSave to avoid
+  // the effect re-running when handleSave's identity changes after
+  // the form resets, which was causing a phantom second POST.
   useEffect(() => {
     if (visible && triggerSaveModal > lastTriggerRef.current) {
       lastTriggerRef.current = triggerSaveModal;
-      handleSave();
+      handleSaveRef.current();
     }
-  }, [triggerSaveModal, visible, handleSave]);
+  }, [triggerSaveModal, visible]);
 
   const handleQualityPress = useCallback((score: number) => {
     setQualityScore(score);

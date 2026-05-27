@@ -15,6 +15,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { memo, useEffect, useMemo, useState } from 'react';
 import {
+  AppState,
+  AppStateStatus,
   BackHandler,
   Dimensions,
   ScrollView,
@@ -450,7 +452,42 @@ export default function DashboardScreen() {
   const fatsGoal = profile?.fats_goal || 70;
 
   // ── Derived values — stable via useMemo ─────────────────────────────────
-  const today = getLocalDateString();
+  // `today` is kept in state so that a timer can force a re-render at
+  // midnight, making Water/Nutrition/Sleep cards reset to the new day's
+  // (empty) values without requiring an app restart.
+  const [today, setToday] = useState(() => getLocalDateString());
+
+  useEffect(() => {
+    // 1. Timer to fire exactly at midnight
+    const scheduleNextMidnight = () => {
+      const now = new Date();
+      const midnight = new Date(now);
+      midnight.setHours(24, 0, 1, 0); // next day 00:00:01
+      const msUntilMidnight = midnight.getTime() - now.getTime();
+
+      return setTimeout(() => {
+        setToday(getLocalDateString());
+        timerRef = scheduleNextMidnight();
+      }, msUntilMidnight);
+    };
+
+    let timerRef = scheduleNextMidnight();
+
+    // 2. AppState listener — recalculate `today` when the app returns
+    //    from background (the midnight timer won't fire while suspended).
+    const handleAppState = (nextState: AppStateStatus) => {
+      if (nextState === 'active') {
+        const currentDate = getLocalDateString();
+        setToday((prev) => (prev !== currentDate ? currentDate : prev));
+      }
+    };
+    const appStateSub = AppState.addEventListener('change', handleAppState);
+
+    return () => {
+      clearTimeout(timerRef);
+      appStateSub.remove();
+    };
+  }, []);
 
   const waterTotal = useMemo(
     () => waterLogs.filter((l) => isLocalDate(l.created_at, today)).reduce((s, l) => s + (Number(l.amount_ml) || 0), 0),

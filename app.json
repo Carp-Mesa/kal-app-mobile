@@ -2,7 +2,7 @@
   "expo": {
     "name": "Gains Station",
     "slug": "gains-station",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "gainsstation",
@@ -18,7 +18,7 @@
     },
     "android": {
       "package": "com.gainsstation.app",
-      "versionCode": 7,
+      "versionCode": 8,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000000"

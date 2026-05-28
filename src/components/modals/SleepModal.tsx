@@ -184,11 +184,11 @@ export const SleepModal: React.FC<SleepModalProps> = ({ visible, onDismiss, onSu
     setModalValidationError(isInvalid);
   }, [isInvalid, setModalValidationError]);
 
-  // ── Guard ref to prevent double-fire ─────────────────────────────────────
-  const isSavingRef = useRef(false);
+  // ── Guard ref to prevent double-fire in the same modal session ───────────
+  const hasSavedRef = useRef(false);
 
   const handleSave = useCallback(() => {
-    if (sleepMut.isPending || isSavingRef.current) return;
+    if (sleepMut.isPending || hasSavedRef.current) return;
 
     const startHour = parseInt(String(start.hourIndex + 1), 10);
     const startMinute = parseInt(String(start.minuteIndex), 10);
@@ -215,7 +215,7 @@ export const SleepModal: React.FC<SleepModalProps> = ({ visible, onDismiss, onSu
     }
 
     setError('');
-    isSavingRef.current = true;
+    hasSavedRef.current = true;
 
     // Compute start and end Date objects from the picker values.
     // The user picks clock times (e.g., 10PM start → 6AM end).
@@ -250,11 +250,10 @@ export const SleepModal: React.FC<SleepModalProps> = ({ visible, onDismiss, onSu
         setError('');
         onSuccess?.();
         onDismiss();
-        isSavingRef.current = false;
       },
       onError: () => {
         setError('Error al registrar el sueño.');
-        isSavingRef.current = false;
+        hasSavedRef.current = false;
       },
     });
   }, [sleepMut, start, end, qualityScore, onSuccess, onDismiss, shake]);
@@ -272,7 +271,7 @@ export const SleepModal: React.FC<SleepModalProps> = ({ visible, onDismiss, onSu
   useEffect(() => {
     if (visible) {
       setError('');
-      isSavingRef.current = false;
+      hasSavedRef.current = false;
       lastTriggerRef.current = triggerSaveModal;
     }
   }, [visible]);

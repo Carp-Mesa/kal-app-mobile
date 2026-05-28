@@ -268,7 +268,19 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
 
       // ── 3. SLEEP ─────────────────────────────────────────────────────────
       const unsyncedSleep = useSleepStore.getState().getUnsynced();
-      for (const record of unsyncedSleep) {
+      const uniqueUnsyncedSleep: SleepLog[] = [];
+      const seenDates = new Set<string>();
+      for (const log of unsyncedSleep) {
+        if (!seenDates.has(log.date)) {
+          seenDates.add(log.date);
+          uniqueUnsyncedSleep.push(log);
+        } else {
+          // Silently mark duplicate as synced so it is not synced again
+          useSleepStore.getState().markSynced(log.id);
+        }
+      }
+
+      for (const record of uniqueUnsyncedSleep) {
         try {
           await apiClient.post('/sleep', {
             id: record.id,

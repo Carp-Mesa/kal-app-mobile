@@ -37,7 +37,7 @@ export default function WorkoutLayout() {
         name="new"
         options={{
           title: 'Nuevo Entrenamiento',
-          headerShown: true,
+          headerShown: false,
           headerBackTitle: 'Atrás',
           presentation: 'card',
           animation: 'slide_from_bottom',
@@ -47,7 +47,7 @@ export default function WorkoutLayout() {
         name="live"
         options={{
           title: 'Entrenamiento en Vivo',
-          headerShown: true,
+          headerShown: false,
           headerBackTitle: 'Atrás',
           presentation: 'card',
           animation: 'slide_from_bottom',

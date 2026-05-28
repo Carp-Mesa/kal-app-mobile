@@ -662,6 +662,14 @@ export default function NewWorkoutScreen() {
 
   return (
     <View style={s.root}>
+      {/* Custom Compact Header */}
+      <View style={s.customHeader}>
+        <Pressable onPress={() => router.back()} hitSlop={12} style={s.customHeaderBackBtn}>
+          <MaterialCommunityIcons name="arrow-left" size={24} color={CYBER} />
+        </Pressable>
+        <Text style={s.customHeaderTitle}>Nuevo Entrenamiento</Text>
+      </View>
+
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -793,6 +801,25 @@ const s = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: BLACK,
+  },
+  customHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 48,
+    backgroundColor: BLACK,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  customHeaderBackBtn: {
+    marginRight: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  customHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: WHITE,
   },
   scrollContent: {
     paddingHorizontal: PAD,

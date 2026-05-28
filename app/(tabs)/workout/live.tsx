@@ -528,28 +528,38 @@ export default function LiveWorkoutScreen() {
   // The user can intentionally trigger the stopwatch and tracking from here.
   if (!live.isActive) {
     return (
-      <View style={[s.root, { justifyContent: 'center' }]}>
-        <View style={[CARD_STYLE, { marginHorizontal: PAD, alignItems: 'center', paddingVertical: 40 }]}>
-          <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(204, 255, 0, 0.15)', justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
-            <MaterialCommunityIcons name="lightning-bolt" size={36} color={CYBER} />
+      <View style={s.root}>
+        {/* Custom Compact Header */}
+        <View style={s.customHeader}>
+          <Pressable onPress={() => router.back()} hitSlop={12} style={s.customHeaderBackBtn}>
+            <MaterialCommunityIcons name="arrow-left" size={24} color={CYBER} />
+          </Pressable>
+          <Text style={s.customHeaderTitle}>Entrenamiento en Vivo</Text>
+        </View>
+
+        <View style={{ flex: 1, justifyContent: 'center' }}>
+          <View style={[CARD_STYLE, { marginHorizontal: PAD, alignItems: 'center', paddingVertical: 40 }]}>
+            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(204, 255, 0, 0.15)', justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
+              <MaterialCommunityIcons name="lightning-bolt" size={36} color={CYBER} />
+            </View>
+            <Text style={[s.screenTitle, { fontSize: 18, color: WHITE, marginBottom: 12, textAlign: 'center', fontWeight: '800' }]}>
+              Entrenamiento en Vivo
+            </Text>
+            <Text style={{ color: SILVER, fontSize: 13, lineHeight: 20, textAlign: 'center', marginBottom: 24, paddingHorizontal: 10 }}>
+              Prepara tu mente y calienta tus músculos. Presiona el botón para iniciar el cronómetro dinámico y registrar tus series en tiempo real.
+            </Text>
+            <Button
+              mode="contained"
+              icon="play"
+              buttonColor={CYBER}
+              textColor={BLACK}
+              onPress={() => live.startWorkout('Sesión en Vivo')}
+              style={{ borderRadius: 14, height: 50, width: '90%', justifyContent: 'center' }}
+              labelStyle={{ fontWeight: '800', fontSize: 14, letterSpacing: 1 }}
+            >
+              INICIAR ENTRENAMIENTO
+            </Button>
           </View>
-          <Text style={[s.screenTitle, { fontSize: 18, color: WHITE, marginBottom: 12, textAlign: 'center', fontWeight: '800' }]}>
-            Entrenamiento en Vivo
-          </Text>
-          <Text style={{ color: SILVER, fontSize: 13, lineHeight: 20, textAlign: 'center', marginBottom: 24, paddingHorizontal: 10 }}>
-            Prepara tu mente y calienta tus músculos. Presiona el botón para iniciar el cronómetro dinámico y registrar tus series en tiempo real.
-          </Text>
-          <Button
-            mode="contained"
-            icon="play"
-            buttonColor={CYBER}
-            textColor={BLACK}
-            onPress={() => live.startWorkout('Sesión en Vivo')}
-            style={{ borderRadius: 14, height: 50, width: '90%', justifyContent: 'center' }}
-            labelStyle={{ fontWeight: '800', fontSize: 14, letterSpacing: 1 }}
-          >
-            INICIAR ENTRENAMIENTO
-          </Button>
         </View>
       </View>
     );
@@ -557,6 +567,14 @@ export default function LiveWorkoutScreen() {
 
   return (
     <View style={s.root}>
+      {/* Custom Compact Header */}
+      <View style={s.customHeader}>
+        <Pressable onPress={() => router.back()} hitSlop={12} style={s.customHeaderBackBtn}>
+          <MaterialCommunityIcons name="arrow-left" size={24} color={CYBER} />
+        </Pressable>
+        <Text style={s.customHeaderTitle}>Entrenamiento en Vivo</Text>
+      </View>
+
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -743,6 +761,25 @@ const s = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: BLACK,
+  },
+  customHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 48,
+    backgroundColor: BLACK,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  customHeaderBackBtn: {
+    marginRight: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  customHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: WHITE,
   },
   scrollContent: {
     paddingHorizontal: PAD,

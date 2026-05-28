@@ -12,7 +12,12 @@ export interface SleepProgressResponse {
   };
 }
 
-export const getTodaySleep = async (): Promise<SleepProgressResponse> => {
-  const response = await apiClient.get<SleepProgressResponse>(`/sleep/progress/today?date=${getLocalDateString()}`);
+export const getTodaySleep = async (date: string = getLocalDateString()): Promise<SleepProgressResponse> => {
+  const response = await apiClient.get<SleepProgressResponse>(`/sleep/progress/today?date=${date}`);
+  return response.data;
+};
+
+export const getWeeklyAnalytics = async (date: string = getLocalDateString()): Promise<any> => {
+  const response = await apiClient.get(`/sleep/analytics/weekly?date=${date}&mode=week`);
   return response.data;
 };

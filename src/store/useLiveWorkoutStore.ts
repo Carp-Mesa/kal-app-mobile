@@ -27,6 +27,7 @@ interface RestTimerState {
   isActive: boolean;
   duration: number; // config duration in seconds
   remaining: number; // remaining seconds
+  endTime?: string | null;
 }
 
 interface LiveWorkoutState {
@@ -92,6 +93,7 @@ export const useLiveWorkoutStore = create<LiveWorkoutState>()(
         isActive: false,
         duration: 90,
         remaining: 0,
+        endTime: null,
       },
 
       startWorkout: (defaultName) => {
@@ -106,6 +108,7 @@ export const useLiveWorkoutStore = create<LiveWorkoutState>()(
             isActive: false,
             duration: 90,
             remaining: 0,
+            endTime: null,
           },
         });
       },
@@ -214,12 +217,6 @@ export const useLiveWorkoutStore = create<LiveWorkoutState>()(
 
           return { exercises: updatedExercises };
         });
-
-        // Trigger notes generation update in real-time
-        setTimeout(() => {
-          const repNotes = get().generateReportNotes();
-          set({ notes: repNotes });
-        }, 100);
       },
 
       removeSet: (exerciseId, setId) => {
@@ -246,32 +243,38 @@ export const useLiveWorkoutStore = create<LiveWorkoutState>()(
 
       tickRestTimer: () => {
         set((state) => {
-          if (!state.restTimer.isActive) return {};
-          const nextRemaining = state.restTimer.remaining - 1;
-          if (nextRemaining <= 0) {
+          if (!state.restTimer.isActive || !state.restTimer.endTime) return {};
+          const now = Date.now();
+          const end = new Date(state.restTimer.endTime).getTime();
+          const remaining = Math.max(0, Math.round((end - now) / 1000));
+          
+          if (remaining <= 0) {
             return {
               restTimer: {
                 ...state.restTimer,
                 isActive: false,
                 remaining: 0,
+                endTime: null,
               },
             };
           }
           return {
             restTimer: {
               ...state.restTimer,
-              remaining: nextRemaining,
+              remaining,
             },
           };
         });
       },
 
       startRestTimer: (duration) => {
+        const endTime = new Date(Date.now() + duration * 1000).toISOString();
         set({
           restTimer: {
             isActive: true,
             duration,
             remaining: duration,
+            endTime,
           },
         });
       },
@@ -282,6 +285,7 @@ export const useLiveWorkoutStore = create<LiveWorkoutState>()(
             ...state.restTimer,
             isActive: false,
             remaining: 0,
+            endTime: null,
           },
         }));
       },
@@ -328,7 +332,7 @@ export const useLiveWorkoutStore = create<LiveWorkoutState>()(
           elapsedSeconds: 0,
           exercises: [],
           notes: '',
-          restTimer: { isActive: false, duration: 90, remaining: 0 },
+          restTimer: { isActive: false, duration: 90, remaining: 0, endTime: null },
         });
       },
 
@@ -339,7 +343,7 @@ export const useLiveWorkoutStore = create<LiveWorkoutState>()(
           elapsedSeconds: 0,
           exercises: [],
           notes: '',
-          restTimer: { isActive: false, duration: 90, remaining: 0 },
+          restTimer: { isActive: false, duration: 90, remaining: 0, endTime: null },
         });
       },
     }),

@@ -1,6 +1,8 @@
 import api from '@/src/services/apiClient';
 import { useSleepStore } from '@/src/store/useSleepStore';
 import { getLocalDateString } from '@/src/store/types';
+import { useAppDateStore } from '@/src/store/useAppDateStore';
+import { getWeeklyAnalytics } from '@/src/services/sleepService';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
@@ -52,9 +54,8 @@ export interface SleepWeeklyStatsResponse {
   };
 }
 
-const fetchSleepWeeklyStats = async (): Promise<SleepWeeklyStatsResponse> => {
-  const response = await api.get<SleepWeeklyStatsResponse>('/sleep/analytics/weekly');
-  return response.data;
+const fetchSleepWeeklyStats = async (date: string): Promise<SleepWeeklyStatsResponse> => {
+  return getWeeklyAnalytics(date);
 };
 
 /**
@@ -67,9 +68,11 @@ const fetchSleepWeeklyStats = async (): Promise<SleepWeeklyStatsResponse> => {
  * without waiting for the server round-trip.
  */
 export const useSleepWeeklyStats = () => {
+  const today = useAppDateStore((state) => state.currentLocalDate);
+
   const query = useQuery({
-    queryKey: ['sleepWeeklyStats'],
-    queryFn: fetchSleepWeeklyStats,
+    queryKey: ['sleepWeeklyStats', today],
+    queryFn: () => fetchSleepWeeklyStats(today),
     staleTime: 2 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
     retry: 1,
@@ -80,83 +83,192 @@ export const useSleepWeeklyStats = () => {
   const sleepLogs = useSleepStore((state) => state.logs);
 
   const data = useMemo(() => {
-    if (!query.data) return query.data;
+    // ── LOCAL-FIRST CALCULATOR: Generate 100% correct local analysis as fallback ──
+    const parts = today.split('-');
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const dayVal = parseInt(parts[2], 10);
+    const baseDate = new Date(year, month, dayVal);
 
-    const today = getLocalDateString();
-    const todayLog = sleepLogs.find((l) => {
-      if (l.date === today) return true;
-      // Also check if start_time falls on today (timezone-safe)
-      const d = new Date(l.start_time);
-      if (isNaN(d.getTime())) return false;
-      const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      return localDate === today;
-    });
+    const dayOfWeek = baseDate.getDay(); // 0 is Sunday, 1 is Monday...
+    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(baseDate);
+    monday.setDate(baseDate.getDate() + diffToMonday);
 
-    // If there's no local sleep for today, or the server already has it, return server data as-is
-    if (!todayLog) return query.data;
+    const datesOfWeek: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const dateString = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      datesOfWeek.push(dateString);
+    }
 
-    // Calculate duration from local log
-    const diffMs = new Date(todayLog.end_time).getTime() - new Date(todayLog.start_time).getTime();
-    const total_minutes = diffMs > 0 ? Math.round(diffMs / 60000) : 0;
-    const hours = Math.floor(total_minutes / 60);
-    const minutes = total_minutes % 60;
+    const dayNames = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    const dayNamesShort = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
 
-    // Find today's slot in the server days array and overlay local data
-    const updatedDays = query.data.days.map((day) => {
-      if (day.date === today) {
-        // Server already has data for today and it matches — skip overlay
-        if (day.has_sleep_log) return day;
-        // Overlay local data onto the empty server slot
+    const localDays: SleepDayStat[] = datesOfWeek.map((dateStr, idx) => {
+      const log = sleepLogs.find((l) => {
+        if (l.date === dateStr) return true;
+        const d = new Date(l.start_time);
+        if (isNaN(d.getTime())) return false;
+        const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        return localDate === dateStr;
+      });
+
+      if (log) {
+        const diffMs = new Date(log.end_time).getTime() - new Date(log.start_time).getTime();
+        const total_minutes = diffMs > 0 ? Math.round(diffMs / 60000) : 0;
+        const hours = Math.floor(total_minutes / 60);
+        const minutes = total_minutes % 60;
         return {
-          ...day,
+          date: dateStr,
+          day_name: dayNames[idx],
+          day_name_short: dayNamesShort[idx],
           has_sleep_log: true,
           total_minutes,
           hours,
           minutes,
-          quality_score: todayLog.quality_score,
-          start_time: todayLog.start_time,
-          end_time: todayLog.end_time,
-          is_goal_met: total_minutes >= (query.data.weekly_summary.sleep_goal_minutes || 480),
+          quality_score: log.quality_score,
+          start_time: log.start_time,
+          end_time: log.end_time,
+          is_goal_met: total_minutes >= 480,
+        };
+      } else {
+        return {
+          date: dateStr,
+          day_name: dayNames[idx],
+          day_name_short: dayNamesShort[idx],
+          has_sleep_log: false,
+          total_minutes: 0,
+          hours: 0,
+          minutes: 0,
+          quality_score: null,
+          start_time: null,
+          end_time: null,
+          is_goal_met: false,
         };
       }
-      return day;
     });
 
-    // Check if today was already present in the days array
-    const todayInDays = updatedDays.some((d) => d.date === today);
-
-    // If today wasn't in the server's days array at all, we can't reliably
-    // merge (different week ranges), so just return server data as-is.
-    if (!todayInDays) return query.data;
-
-    // Recompute summary values with the overlay
-    const daysWithSleep = updatedDays.filter((d) => d.has_sleep_log);
-    const totalDaysWithSleep = daysWithSleep.length;
+    const loggedDays = localDays.filter((d) => d.has_sleep_log);
+    const totalDaysWithSleep = loggedDays.length;
     const avgMinutes = totalDaysWithSleep > 0
-      ? Math.round(daysWithSleep.reduce((s, d) => s + d.total_minutes, 0) / totalDaysWithSleep)
+      ? Math.round(loggedDays.reduce((s, d) => s + d.total_minutes, 0) / totalDaysWithSleep)
       : 0;
     const avgHours = Math.floor(avgMinutes / 60);
     const avgMins = avgMinutes % 60;
     const avgQuality = totalDaysWithSleep > 0
       ? Math.round(
-          (daysWithSleep.reduce((s, d) => s + (d.quality_score ?? 0), 0) / totalDaysWithSleep) * 10
+          (loggedDays.reduce((s, d) => s + (d.quality_score ?? 0), 0) / totalDaysWithSleep) * 10
         ) / 10
       : 0;
-    const daysMeetingGoal = updatedDays.filter((d) => d.is_goal_met).length;
+    const daysMeetingGoal = localDays.filter((d) => d.is_goal_met).length;
 
-    return {
-      ...query.data,
+    const bestQualityDayLog = loggedDays.length > 0
+      ? loggedDays.reduce((best, curr) => {
+          const bestQ = best.quality_score ?? 0;
+          const currQ = curr.quality_score ?? 0;
+          return currQ >= bestQ ? curr : best;
+        }, loggedDays[0])
+      : null;
+
+    const consistency_score = Math.round((totalDaysWithSleep / 7) * 100);
+
+    const localCalculatedData: SleepWeeklyStatsResponse = {
       weekly_summary: {
-        ...query.data.weekly_summary,
         total_days_with_sleep: totalDaysWithSleep,
+        total_days_in_week: 7,
         average_duration_minutes: avgMinutes,
         average_duration_formatted: `${avgHours}h ${avgMins}m`,
         average_quality_score: avgQuality,
         days_meeting_goal: daysMeetingGoal,
+        sleep_goal_minutes: 480,
+        sleep_goal_hours: 8,
       },
-      days: updatedDays,
+      days: localDays,
+      insights: {
+        best_quality_day: bestQualityDayLog
+          ? {
+              date: bestQualityDayLog.date,
+              day_name: bestQualityDayLog.day_name,
+              quality_score: bestQualityDayLog.quality_score ?? 0,
+            }
+          : null,
+        longest_sleep_day: null,
+        shortest_sleep_day: null,
+        consistency_score,
+      },
     };
-  }, [query.data, sleepLogs]);
+
+    // If query succeeded and has data, we can overlay today's local log on it (like original logic).
+    if (query.data) {
+      const todayLog = sleepLogs.find((l) => {
+        if (l.date === today) return true;
+        const d = new Date(l.start_time);
+        if (isNaN(d.getTime())) return false;
+        const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        return localDate === today;
+      });
+
+      if (!todayLog) return query.data;
+
+      const diffMs = new Date(todayLog.end_time).getTime() - new Date(todayLog.start_time).getTime();
+      const total_minutes = diffMs > 0 ? Math.round(diffMs / 60000) : 0;
+      const hours = Math.floor(total_minutes / 60);
+      const minutes = total_minutes % 60;
+
+      const updatedDays = query.data.days.map((day) => {
+        if (day.date === today) {
+          if (day.has_sleep_log) return day;
+          return {
+            ...day,
+            has_sleep_log: true,
+            total_minutes,
+            hours,
+            minutes,
+            quality_score: todayLog.quality_score,
+            start_time: todayLog.start_time,
+            end_time: todayLog.end_time,
+            is_goal_met: total_minutes >= (query.data.weekly_summary.sleep_goal_minutes || 480),
+          };
+        }
+        return day;
+      });
+
+      const todayInDays = updatedDays.some((d) => d.date === today);
+      if (!todayInDays) return query.data;
+
+      const daysWithSleep = updatedDays.filter((d) => d.has_sleep_log);
+      const totalDaysWithSleep = daysWithSleep.length;
+      const avgMinutes = totalDaysWithSleep > 0
+        ? Math.round(daysWithSleep.reduce((s, d) => s + d.total_minutes, 0) / totalDaysWithSleep)
+        : 0;
+      const avgHours = Math.floor(avgMinutes / 60);
+      const avgMins = avgMinutes % 60;
+      const avgQuality = totalDaysWithSleep > 0
+        ? Math.round(
+            (daysWithSleep.reduce((s, d) => s + (d.quality_score ?? 0), 0) / totalDaysWithSleep) * 10
+          ) / 10
+        : 0;
+      const daysMeetingGoal = updatedDays.filter((d) => d.is_goal_met).length;
+
+      return {
+        ...query.data,
+        weekly_summary: {
+          ...query.data.weekly_summary,
+          total_days_with_sleep: totalDaysWithSleep,
+          average_duration_minutes: avgMinutes,
+          average_duration_formatted: `${avgHours}h ${avgMins}m`,
+          average_quality_score: avgQuality,
+          days_meeting_goal: daysMeetingGoal,
+        },
+        days: updatedDays,
+      };
+    }
+
+    // Fallback: fully local calculation
+    return localCalculatedData;
+  }, [query.data, sleepLogs, today]);
 
   return { ...query, data };
 };

@@ -8,6 +8,8 @@ import { mapApiProfileToStore, useProfileStore } from './useProfileStore';
 import { useSleepStore } from './useSleepStore';
 import { useWaterStore } from './useWaterStore';
 import { useWorkoutStore } from './useWorkoutStore';
+import { useAppDateStore } from './useAppDateStore';
+import { jwtDecode } from 'jwt-decode';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Shadow Sync Engine — Silent background synchronization + Cold Start bootstrap
@@ -52,7 +54,9 @@ interface ShadowSyncState {
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
 function isClientError(status: number): boolean {
-  return status >= 400 && status < 500;
+  // 401 (Unauthorized) and 403 (Forbidden) are authentication/authorization issues.
+  // They are temporary and should NOT cause local data to be marked as synced/discarded.
+  return status >= 400 && status < 500 && status !== 401 && status !== 403;
 }
 
 function addLog(entry: SyncLogEntry, state: SyncLogEntry[]): SyncLogEntry[] {
@@ -293,7 +297,7 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
       const unsyncedWorkouts = useWorkoutStore.getState().getUnsynced();
       for (const record of unsyncedWorkouts) {
         try {
-          await apiClient.post('/workout', {
+          const res = await apiClient.post('/workout', {
             id: record.id,
             name: record.name,
             date: record.date,
@@ -307,8 +311,14 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
             })),
             local_date: record.local_date || record.date,
           });
-          useWorkoutStore.getState().markSynced(record.id);
-          set((s) => ({ debugLog: addLog({ timestamp: new Date().toISOString(), domain: 'workout', recordId: record.id, status: 'success' }, s.debugLog) }));
+          const serverId = res.data?.id;
+          if (serverId) {
+            useWorkoutStore.getState().updateWorkoutId(record.id, serverId);
+            useWorkoutStore.getState().markSynced(serverId);
+          } else {
+            useWorkoutStore.getState().markSynced(record.id);
+          }
+          set((s) => ({ debugLog: addLog({ timestamp: new Date().toISOString(), domain: 'workout', recordId: serverId || record.id, status: 'success' }, s.debugLog) }));
         } catch (err: any) {
           const status = err?.response?.status;
           if (status && isClientError(status)) {
@@ -363,7 +373,7 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
 
     try {
       // ── Fetch profile + workout history + today's logs in parallel ──────
-      const today = getLocalDateString();
+      const today = useAppDateStore.getState().currentLocalDate;
       const [profileRes, workoutsRes, waterRes, nutritionRes, sleepRes] = await Promise.allSettled([
         apiClient.get('/profile'),
         apiClient.get('/workout/history?limit=100&offset=0'),
@@ -373,10 +383,12 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
       ]);
 
       // ── Profile (Cold Start → overwrite; Warm → keep local) ─────────────
+      let serverProfileFetched = false;
       if (profileRes.status === 'fulfilled' && profileRes.value.data) {
         const payload = profileRes.value.data?.data ?? profileRes.value.data;
         const mappedProfile = mapApiProfileToStore(payload);
         if (Object.keys(mappedProfile).length > 0) {
+          serverProfileFetched = true;
           const profileStore = useProfileStore.getState();
           const localProfile = profileStore.profile || {};
           const wasSynced = profileStore.synced;
@@ -404,6 +416,32 @@ export const useShadowSyncStore = create<ShadowSyncState>()((set, get) => ({
         }
       } else if (profileRes.status === 'rejected') {
         console.warn('[ShadowSync] fetchAndMerge: profile REJECTED', profileRes.reason?.message);
+      }
+
+      // Self-healing: if no profile exists on server, initialize it using JWT metadata
+      if (!serverProfileFetched) {
+        try {
+          const decoded = jwtDecode(accessToken) as any;
+          const userMetadata = decoded?.user_metadata || {};
+          const email = decoded?.email || '';
+          const name = userMetadata.full_name || userMetadata.name || email.split('@')[0] || 'Atleta Gains';
+
+          const profileStore = useProfileStore.getState();
+          if (!profileStore.profile || !profileStore.profile.full_name) {
+            profileStore.setProfile({
+              full_name: name,
+            });
+            // Mark as unsynced so that the sync engine immediately pushes it to the server
+            useProfileStore.setState({ synced: false });
+            
+            // Queue a sync immediately to push the newly initialized profile to the server!
+            setTimeout(() => {
+              get().syncAll();
+            }, 100);
+          }
+        } catch (jwtErr) {
+          console.error('[ShadowSync] Failed to decode token or initialize profile:', jwtErr);
+        }
       }
 
       // ── Workouts — merge via idempotent store method ────────────────────────

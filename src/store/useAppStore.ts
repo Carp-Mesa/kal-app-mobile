@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-type ModalType = 'none' | 'water' | 'nutrition' | 'sleep';
+type ModalType = 'none' | 'water' | 'nutrition' | 'sleep' | 'glossary';
 
 interface AppState {
   hasSeenOnboarding: boolean;

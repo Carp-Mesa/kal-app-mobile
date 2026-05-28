@@ -1,3 +1,4 @@
+import { CustomToast } from '@/src/components/CustomToast';
 import { useExerciseSuggestions } from '@/src/hooks/useExerciseSuggestions';
 import { useShake } from '@/src/hooks/useShake';
 import { useAppStore } from '@/src/store/useAppStore';
@@ -15,7 +16,6 @@ import {
   View,
 } from 'react-native';
 import { Text, TextInput } from 'react-native-paper';
-import { CustomToast } from '@/src/components/CustomToast';
 import Animated from 'react-native-reanimated';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -732,9 +732,10 @@ export default function NewWorkoutScreen() {
                 value={form.notes}
                 onChangeText={(t) => updateWorkoutField('notes', t)}
                 multiline
-                numberOfLines={2}
+                numberOfLines={3}
                 left={<TextInput.Icon icon="note-text-outline" color={SILVER} />}
-                style={[s.cardInput, { height: 72 }]}
+                style={[s.cardInput, { height: 80 }]}
+                contentStyle={{ textAlignVertical: 'top', paddingTop: 8, paddingBottom: 8 }}
                 theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
                 outlineStyle={OUTLINE_STYLE}
                 textColor={WHITE}
@@ -805,7 +806,7 @@ const s = StyleSheet.create({
   customHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 48,
+    height: 44,
     backgroundColor: BLACK,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
@@ -823,7 +824,7 @@ const s = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: PAD,
-    paddingTop: 24,
+    paddingTop: 12,
     paddingBottom: 24,
   },
 

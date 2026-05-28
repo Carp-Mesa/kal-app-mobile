@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
-import { getLocalDateString, isLocalDate } from '../store/types';
+import { isLocalDate } from '../store/types';
 import { useSleepStore } from '../store/useSleepStore';
+import { useAppDateStore } from '../store/useAppDateStore';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Local-First Sleep Hook
@@ -13,7 +14,7 @@ import { useSleepStore } from '../store/useSleepStore';
 
 export const useTodaySleep = () => {
   const sleepLogs = useSleepStore((state) => state.logs);
-  const today = getLocalDateString();
+  const today = useAppDateStore((state) => state.currentLocalDate);
 
   const sleepData = useMemo(() => {
     const log = sleepLogs.find((l) => l.date === today || isLocalDate(l.start_time, today));

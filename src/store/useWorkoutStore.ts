@@ -34,6 +34,7 @@ interface WorkoutState {
 
   // ── Sync helpers ───────────────────────────────────────────────────────────
   markSynced: (id: string) => void;
+  updateWorkoutId: (oldId: string, newId: string) => void;
   getUnsynced: () => WorkoutLog[];
   mergeFromServer: (serverLogs: WorkoutLog[]) => void;
 
@@ -88,6 +89,12 @@ export const useWorkoutStore = create<WorkoutState>()(
       markSynced: (id) => {
         set((state) => ({
           logs: state.logs.map((l) => (l.id === id ? { ...l, synced: true } : l)),
+        }));
+      },
+
+      updateWorkoutId: (oldId, newId) => {
+        set((state) => ({
+          logs: state.logs.map((l) => (l.id === oldId ? { ...l, id: newId } : l)),
         }));
       },
 

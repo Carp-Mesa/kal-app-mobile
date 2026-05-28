@@ -500,16 +500,13 @@ export default function LiveWorkoutScreen() {
       return;
     }
 
-    // 3. Compile automatic report notes + append custom comments
-    const finalReport = live.generateReportNotes();
-
     // 4. Save workout log local-first
     const elapsedMins = Math.round(live.elapsedSeconds / 60) || 1;
     addWorkout({
       name: live.name.trim() || 'Entrenamiento en Vivo',
       date: getLocalDateString(),
       duration_mins: elapsedMins,
-      notes: finalReport,
+      notes: live.notes.trim() || undefined,
       exercises: exercisesPayload,
     });
 
@@ -569,10 +566,31 @@ export default function LiveWorkoutScreen() {
     <View style={s.root}>
       {/* Custom Compact Header */}
       <View style={s.customHeader}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={s.customHeaderBackBtn}>
-          <MaterialCommunityIcons name="arrow-left" size={24} color={CYBER} />
-        </Pressable>
-        <Text style={s.customHeaderTitle}>Entrenamiento en Vivo</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+          <Pressable onPress={() => router.back()} hitSlop={12} style={s.customHeaderBackBtn}>
+            <MaterialCommunityIcons name="arrow-left" size={24} color={CYBER} />
+          </Pressable>
+          <Text style={s.customHeaderTitle}>Entrenamiento en Vivo</Text>
+        </View>
+
+        {/* Right-aligned rest timer badge */}
+        {live.restTimer.isActive && live.restTimer.remaining > 0 && (
+          <Pressable
+            onPress={() => {
+              live.stopRestTimer();
+              Alert.alert('Descanso Cancelado', 'El temporizador de descanso ha sido detenido.');
+            }}
+            hitSlop={8}
+            style={({ pressed }) => [
+              s.headerRestBadge,
+              pressed && { opacity: 0.7 }
+            ]}
+          >
+            <MaterialCommunityIcons name="timer-sand" size={14} color={CYBER} style={{ marginRight: 4 }} />
+            <Text style={s.headerRestText}>{formatStopwatch(live.restTimer.remaining)}</Text>
+            <MaterialCommunityIcons name="close-circle" size={12} color={SILVER} style={{ marginLeft: 6 }} />
+          </Pressable>
+        )}
       </View>
 
       <KeyboardAvoidingView
@@ -673,18 +691,19 @@ export default function LiveWorkoutScreen() {
               />
             </View>
 
-            {/* Compiled Live Report Notes block */}
+            {/* Live Report Notes block */}
             <View style={[s.inputGroup, { marginBottom: 0 }]}>
               <Text style={s.inputLabel}>Notas de la sesión</Text>
               <TextInput
                 mode="outlined"
-                placeholder="Las notas del entrenamiento se autogeneran por serie..."
+                placeholder="Escribe comentarios o notas del entrenamiento..."
                 value={live.notes}
                 onChangeText={(t) => live.updateNotes(t)}
                 multiline
-                numberOfLines={4}
+                numberOfLines={3}
                 left={<TextInput.Icon icon="note-text-outline" color={SILVER} />}
-                style={[s.cardInput, { height: 120, textAlign: 'center' }]}
+                style={[s.cardInput, { height: 80 }]}
+                contentStyle={{ textAlignVertical: 'top', paddingTop: 8, paddingBottom: 8 }}
                 theme={{ colors: { primary: CYBER, onSurfaceVariant: SILVER, onSurface: WHITE } }}
                 outlineStyle={OUTLINE_STYLE}
                 textColor={WHITE}
@@ -765,7 +784,7 @@ const s = StyleSheet.create({
   customHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 48,
+    height: 44,
     backgroundColor: BLACK,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
@@ -781,9 +800,25 @@ const s = StyleSheet.create({
     fontWeight: '700',
     color: WHITE,
   },
+  headerRestBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(204, 255, 0, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(204, 255, 0, 0.35)',
+    borderRadius: 12,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  headerRestText: {
+    color: CYBER,
+    fontSize: 12,
+    fontWeight: '700',
+    fontFamily: 'SpaceMono',
+  },
   scrollContent: {
     paddingHorizontal: PAD,
-    paddingTop: 24,
+    paddingTop: 12,
     paddingBottom: 24,
   },
 

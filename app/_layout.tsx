@@ -22,6 +22,7 @@ import { useWaterStore } from '@/src/store/useWaterStore';
 import { useNutritionStore } from '@/src/store/useNutritionStore';
 import { useSleepStore } from '@/src/store/useSleepStore';
 import { useShadowSync } from '@/src/hooks/useShadowSync';
+import { useAppDateSync } from '@/src/hooks/useAppDateSync';
 import { useShadowSyncStore } from '@/src/store/useShadowSyncStore';
 import { authService } from '@/src/services/authService';
 import { clearAllStores } from '@/src/store/clearAllStores';
@@ -129,6 +130,7 @@ function RootLayoutNav() {
   const navTheme = themeMode === 'dark' ? DarkTheme : DefaultTheme;
 
   useShadowSync();
+  useAppDateSync();
 
   // ── Global deep link listener for OAuth callbacks ──────────────────────
   // Handles URLs like: gainsstation://auth/callback#access_token=...&refresh_token=...

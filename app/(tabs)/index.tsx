@@ -2,6 +2,7 @@ import { FadeIn } from '@/src/components/FadeIn';
 import { NutritionModal } from '@/src/components/modals/NutritionModal';
 import { SleepModal } from '@/src/components/modals/SleepModal';
 import { WaterModal } from '@/src/components/modals/WaterModal';
+import { GlossaryModal } from '@/src/components/modals/GlossaryModal';
 import { getLocalDateString, isLocalDate } from '@/src/store/types';
 import { useAppStore } from '@/src/store/useAppStore';
 import { useNutritionStore } from '@/src/store/useNutritionStore';
@@ -9,18 +10,22 @@ import { useProfileStore } from '@/src/store/useProfileStore';
 import { useSleepStore } from '@/src/store/useSleepStore';
 import { useWaterStore } from '@/src/store/useWaterStore';
 import { useWorkoutStore } from '@/src/store/useWorkoutStore';
+import { useAppDateStore } from '@/src/store/useAppDateStore';
+import { useShadowSyncStore } from '@/src/store/useShadowSyncStore';
 import { useSleepWeeklyStats } from '@/src/hooks/useSleepWeeklyStats';
 import { capitalizeName } from '@/src/utils/formatting';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { memo, useEffect, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AppState,
   AppStateStatus,
   BackHandler,
   Dimensions,
+  RefreshControl,
   ScrollView,
   StyleSheet,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import {
@@ -37,171 +42,105 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 
 // ─── Cards ────────────────────────────────────────────────────────────
 
-const CircularProgressCard = memo(function CircularProgressCard({ title, subtitle, icon, progress, style }: any) {
+const getHpiColor = (HPI: number, theme: any) => {
+  if (HPI >= 900) return theme.colors.primary; // Neon green
+  if (HPI >= 750) return '#4FC3F7'; // Blue
+  if (HPI >= 500) return '#FFB74D'; // Orange
+  return '#EF5350'; // Red
+};
+
+const getIconBgColor = (color: string, theme: any) => {
+  const isPrimary = color === '#CCFF00' || color === theme.colors.primary;
+  if (isPrimary) return theme.dark ? 'rgba(204, 255, 0, 0.08)' : 'rgba(204, 255, 0, 0.05)';
+  if (color === '#FFB74D') return theme.dark ? 'rgba(255, 183, 77, 0.08)' : 'rgba(255, 183, 77, 0.05)';
+  if (color === '#4FC3F7') return theme.dark ? 'rgba(79, 195, 247, 0.08)' : 'rgba(79, 195, 247, 0.05)';
+  if (color === '#EF5350') return theme.dark ? 'rgba(239, 83, 80, 0.08)' : 'rgba(239, 83, 80, 0.05)';
+  return theme.dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)';
+};
+
+const PillarGridCard = memo(function PillarGridCard({ title, subtitle, icon, valueText, progress, color, onPress }: any) {
   const theme = useTheme();
-  const size = 110;
-  const strokeWidth = 10;
+  const size = 44; // Slightly more compact to gain horizontal text space
+  const strokeWidth = 4;
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
   const offset = circumference - Math.min(progress, 1) * circumference;
-  
-  return (
-    <View style={[{ 
-      backgroundColor: theme.dark ? '#1c1c1e' : theme.colors.surface,
-      borderColor: 'rgba(255,255,255,0.15)',
-      borderWidth: 1.5,
-      borderRadius: 16,
-      padding: 16,
-    }, style]}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-        <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(204, 255, 0, 0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-          <MaterialCommunityIcons name={icon} size={20} color={theme.colors.primary} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: theme.colors.onSurface, fontWeight: '700', fontSize: 16 }} numberOfLines={1}>{title}</Text>
-          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12 }} numberOfLines={1}>{subtitle}</Text>
-        </View>
-      </View>
-      
-      <View style={{ alignItems: 'center', justifyContent: 'center', height: size }}>
-        <Svg width={size} height={size}>
-          <Circle
-            stroke={theme.dark ? 'rgba(204,255,0,0.15)' : 'rgba(0,0,0,0.05)'}
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            strokeWidth={strokeWidth}
-            fill="none"
-          />
-          <Circle
-            stroke={theme.colors.primary}
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            strokeWidth={strokeWidth}
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
-            strokeLinecap="round"
-            fill="none"
-            transform={`rotate(-90 ${size / 2} ${size / 2})`}
-          />
-        </Svg>
-        <View style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ color: theme.colors.onSurface, fontSize: 22, fontWeight: 'bold' }}>
-            {Math.round(progress * 100)}%
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
-});
 
-const NutritionCard = memo(function NutritionCard({ title, subtitle, icon, progress, proteinPct, carbsPct, fatsPct, proteinGoal, carbsGoal, fatsGoal, proteinTotal, carbsTotal, fatsTotal, style }: any) {
-  const theme = useTheme();
+  const isNumeric = /^\d/.test(valueText);
+  const activeColor = color || theme.colors.primary;
+  const iconBg = getIconBgColor(activeColor, theme);
 
-  return (
-    <View style={[{
-      backgroundColor: theme.dark ? '#1c1c1e' : theme.colors.surface,
-      borderColor: 'rgba(255,255,255,0.15)',
-      borderWidth: 1.5,
-      borderRadius: 16,
-      padding: 16,
-    }, style]}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-        <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(204, 255, 0, 0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-          <MaterialCommunityIcons name={icon} size={20} color={theme.colors.primary} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: theme.colors.onSurface, fontWeight: '700', fontSize: 16 }} numberOfLines={1}>{title}</Text>
-          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12 }} numberOfLines={1}>{subtitle}</Text>
-        </View>
-      </View>
-
-      {/* ── Macro breakdown ────────────────────────────────────────── */}
-      <View style={{ marginTop: 0, gap: 6 }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11, fontWeight: '600' }}>Calorías</Text>
-          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11 }}>{Math.round(progress * 100)}%</Text>
-        </View>
-        <View style={{ height: 3, borderRadius: 2, backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', marginBottom: 4 }}>
-          <View style={{ height: 3, borderRadius: 2, backgroundColor: theme.colors.primary, width: `${Math.min(progress * 100, 100)}%` }} />
-        </View>
-
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11, fontWeight: '600' }}>Proteína</Text>
-          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11 }}>{proteinTotal}/{proteinGoal}g</Text>
-        </View>
-        <View style={{ height: 3, borderRadius: 2, backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }}>
-          <View style={{ height: 3, borderRadius: 2, backgroundColor: '#4FC3F7', width: `${Math.min(proteinPct * 100, 100)}%` }} />
-        </View>
-
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11, fontWeight: '600' }}>Carbohidratos</Text>
-          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11 }}>{carbsTotal}/{carbsGoal}g</Text>
-        </View>
-        <View style={{ height: 3, borderRadius: 2, backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }}>
-          <View style={{ height: 3, borderRadius: 2, backgroundColor: '#FFB74D', width: `${Math.min(carbsPct * 100, 100)}%` }} />
-        </View>
-
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11, fontWeight: '600' }}>Grasas</Text>
-          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 11 }}>{fatsTotal}/{fatsGoal}g</Text>
-        </View>
-        <View style={{ height: 3, borderRadius: 2, backgroundColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }}>
-          <View style={{ height: 3, borderRadius: 2, backgroundColor: '#EF5350', width: `${Math.min(fatsPct * 100, 100)}%` }} />
-        </View>
-      </View>
-    </View>
-  );
-});
-
-const WorkoutStatusCard = memo(function WorkoutStatusCard({ title, currentSession, duration, status, onPress }: any) {
-  const theme = useTheme();
   return (
     <Card 
       onPress={onPress}
       style={{
+        flex: 1,
         backgroundColor: theme.dark ? '#1c1c1e' : theme.colors.surface,
-        borderColor: 'rgba(255,255,255,0.15)',
+        borderColor: progress >= 1 ? activeColor : 'rgba(255,255,255,0.12)', // Border color matches its own accent color when completed!
         borderWidth: 1.5,
-        borderRadius: 16,
-        marginBottom: 16,
+        borderRadius: 18,
         elevation: 0,
       }}
     >
-      <Card.Content style={{ padding: 16 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-          <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(204, 255, 0, 0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-            <MaterialCommunityIcons name="dumbbell" size={20} color={theme.colors.primary} />
+      <Card.Content style={{ padding: 12 }}>
+        {/* Symmetrical Left Grouped Header */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: iconBg, justifyContent: 'center', alignItems: 'center' }}>
+            <MaterialCommunityIcons name={icon} size={16} color={activeColor} />
           </View>
-          <Text style={{ color: theme.colors.onSurface, fontWeight: '700', fontSize: 18 }}>{title}</Text>
+          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 }}>{title}</Text>
         </View>
 
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-          <Text style={{ color: theme.colors.onSurface, fontSize: 16 }} numberOfLines={1}>Sesión actual: {currentSession}</Text>
-          <Text style={{ color: theme.colors.primary, fontSize: 16 }}>{duration}</Text>
-        </View>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 14 }}>Tiempo</Text>
-          <Text style={{ color: theme.colors.primary, fontSize: 14 }}>{status}</Text>
-        </View>
+        {/* Dynamic Typography and Spacing to prevent cutting */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'space-between' }}>
+          <View style={{ flex: 1, marginRight: 2 }}>
+            <Text 
+              style={{ 
+                color: theme.colors.onSurface, 
+                fontSize: isNumeric ? 16 : 14, 
+                fontWeight: '900', 
+                fontFamily: isNumeric ? 'SpaceMono' : undefined,
+              }} 
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+            >
+              {valueText}
+            </Text>
+            <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 10, marginTop: 2 }} numberOfLines={1}>{subtitle}</Text>
+          </View>
 
-        {status === 'Pendiente' && (
-          <Button
-            mode="contained"
-            icon="lightning-bolt"
-            buttonColor={theme.colors.primary}
-            textColor={theme.dark ? '#000000' : '#FFFFFF'}
-            onPress={(e) => {
-              e.stopPropagation(); // prevent Card's onPress from routing to the default workouts tab
-              router.push('/(tabs)/workout/live');
-            }}
-            style={{ marginTop: 16, borderRadius: 10 }}
-            labelStyle={{ fontWeight: '800', fontSize: 13 }}
-          >
-            Iniciar Entrenamiento en Vivo
-          </Button>
-        )}
+          {/* Symmetrical mini progress wheel */}
+          <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
+            <Svg width={size} height={size}>
+              <Circle
+                stroke={theme.dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'}
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                strokeWidth={strokeWidth}
+                fill="none"
+              />
+              <Circle
+                stroke={activeColor}
+                cx={size / 2}
+                cy={size / 2}
+                r={radius}
+                strokeWidth={strokeWidth}
+                strokeDasharray={circumference}
+                strokeDashoffset={offset}
+                strokeLinecap="round"
+                fill="none"
+                transform={`rotate(-90 ${size / 2} ${size / 2})`}
+              />
+            </Svg>
+            <View style={{ position: 'absolute' }}>
+              <Text style={{ color: theme.colors.onSurface, fontSize: 8.5, fontWeight: '800' }}>
+                {Math.round(Math.min(progress, 9.99) * 100)}%
+              </Text>
+            </View>
+          </View>
+        </View>
       </Card.Content>
     </Card>
   );
@@ -252,165 +191,166 @@ const SleepChartCard = memo(function SleepChartCard({ title, analytics, isLoadin
   const dayLabels = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
   return (
-    <View style={{
+    <Card 
+      style={{
         backgroundColor: theme.dark ? '#1c1c1e' : theme.colors.surface,
-        borderColor: 'rgba(255,255,255,0.15)',
+        borderColor: 'rgba(255,255,255,0.12)',
         borderWidth: 1.5,
-        borderRadius: 20,
-        padding: 16,
+        borderRadius: 18,
         marginBottom: 16,
         elevation: 0,
-      }}>
-      {/* Header */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(204, 255, 0, 0.15)', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-            <MaterialCommunityIcons name="bed" size={22} color={theme.colors.primary} />
+      }}
+    >
+      <Card.Content style={{ padding: 12 }}>
+        {/* Futuristic Cohesive Header */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: theme.dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', justifyContent: 'center', alignItems: 'center' }}>
+              <MaterialCommunityIcons name="bed" size={16} color={theme.colors.primary} />
+            </View>
+            <View>
+              <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 }}>{title}</Text>
+              <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 10, marginTop: 1 }}>Consistencia semanal</Text>
+            </View>
           </View>
-          <View>
-            <Text style={{ color: theme.colors.onSurface, fontWeight: '800', fontSize: 18 }}>{title}</Text>
-            <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12 }}>
-              {weeklySummary.total_days_with_sleep} / {weeklySummary.total_days_in_week} días registrados
+          
+          {/* Average Badge */}
+          <View style={{ 
+            backgroundColor: theme.dark ? 'rgba(204,255,0,0.08)' : 'rgba(0,0,0,0.03)', 
+            borderWidth: 1, 
+            borderColor: 'rgba(204,255,0,0.15)', 
+            borderRadius: 12, 
+            paddingHorizontal: 8, 
+            paddingVertical: 3 
+          }}>
+            <Text style={{ color: theme.colors.primary, fontWeight: '800', fontSize: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Promedio
             </Text>
           </View>
         </View>
-        
-        {/* Average Badge */}
-        <View style={{ backgroundColor: theme.dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}>
-          <Text style={{ color: theme.colors.onSurface, fontWeight: '700', fontSize: 12 }}>
-            Promedio
-          </Text>
+
+        {/* Cohesive Primary Metric Row */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 16 }}>
+          <View>
+            <Text style={{ color: theme.colors.primary, fontSize: 24, fontWeight: '900', fontFamily: 'SpaceMono' }}>
+              {weeklySummary.average_duration_formatted || '0h 0m'}
+            </Text>
+            <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 10, marginTop: 2 }}>
+              Duración diaria promedio de descanso
+            </Text>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={{ color: theme.colors.onSurface, fontSize: 12, fontWeight: '700', fontFamily: 'SpaceMono' }}>
+              {weeklySummary.total_days_with_sleep} / {weeklySummary.total_days_in_week} d
+            </Text>
+            <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 9, marginTop: 2 }}>
+              Registrados
+            </Text>
+          </View>
         </View>
-      </View>
 
-      {/* Main Sleep Metric */}
-      <View style={{ marginBottom: 20 }}>
-        <Text style={{ color: theme.colors.primary, fontSize: 32, fontWeight: '800' }}>
-          {weeklySummary.average_duration_formatted || '0h 0m'}
-        </Text>
-        <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12, marginTop: 2 }}>
-          Duración diaria promedio de descanso
-        </Text>
-      </View>
+        {/* Space-Saving Futuristic Dynamic Bar Chart (No circle row) */}
+        <View style={{ 
+          flexDirection: 'row', 
+          justifyContent: 'space-between', 
+          height: 80, 
+          alignItems: 'flex-end', 
+          paddingHorizontal: 4, 
+          marginBottom: 6 
+        }}>
+          {days.map((day: any, i: number) => {
+            const totalMins = day?.total_minutes || 0;
+            const hours = totalMins / 60;
+            // Scale relative to 12 hours (720 minutes), maximum graph height is 55px to be ultra-clean
+            const barHeight = Math.max(Math.min((totalMins / 720) * 55, 55), 4);
+            const hasLog = day?.has_sleep_log;
+            const isGoalMet = day?.is_goal_met;
 
-      {/* Burbujas Semanales (Reconteo) */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 24, paddingHorizontal: 4 }}>
-        {dayLabels.map((label, idx) => {
-          const dayData = days[idx] || mockSleepAnalytics.days[idx];
-          const hasLog = dayData?.has_sleep_log;
-          
-          return (
-            <View key={idx} style={{ alignItems: 'center', gap: 4 }}>
-              <View style={[{
-                width: 32,
-                height: 32,
-                borderRadius: 16,
-                justifyContent: 'center',
-                alignItems: 'center',
-              }, hasLog ? {
-                backgroundColor: theme.colors.primary,
-                shadowColor: theme.colors.primary,
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.3,
-                shadowRadius: 4,
-                elevation: 4,
-              } : {
-                backgroundColor: theme.dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
-                borderWidth: 1,
-                borderColor: theme.dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-              }]}>
-                <Text style={{
-                  fontSize: 12,
+            let barBgColor = theme.dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)';
+            if (hasLog) {
+              barBgColor = isGoalMet ? theme.colors.primary : '#FFB74D';
+            }
+
+            return (
+              <View key={i} style={{ alignItems: 'center', flex: 1 }}>
+                {hasLog ? (
+                  <Text style={{ 
+                    color: isGoalMet ? theme.colors.primary : '#FFB74D', 
+                    fontSize: 8, 
+                    fontWeight: '800', 
+                    marginBottom: 2,
+                    fontFamily: 'SpaceMono'
+                  }}>
+                    {hours.toFixed(1)}h
+                  </Text>
+                ) : (
+                  <Text style={{ fontSize: 8, color: 'transparent', marginBottom: 2 }}>-</Text>
+                )}
+                <View style={{ 
+                  width: 12, 
+                  height: barHeight, 
+                  backgroundColor: barBgColor, 
+                  borderRadius: 3,
+                  marginBottom: 6
+                }} />
+                <Text style={{ 
+                  color: hasLog ? theme.colors.onSurface : theme.colors.onSurfaceVariant, 
+                  fontSize: 9, 
                   fontWeight: '800',
-                  color: hasLog ? '#000000' : theme.colors.onSurfaceVariant,
+                  opacity: hasLog ? 1 : 0.5
                 }}>
-                  {label}
+                  {day?.day_name_short?.charAt(0) || dayLabels[i]}
                 </Text>
               </View>
+            );
+          })}
+        </View>
+
+        {/* Divider */}
+        <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginVertical: 12 }} />
+
+        {/* Highly Cohesive Insights Columns */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
+          {/* Consistencia */}
+          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(79, 195, 247, 0.12)', justifyContent: 'center', alignItems: 'center' }}>
+              <MaterialCommunityIcons name="pulse" size={13} color="#4FC3F7" />
             </View>
-          );
-        })}
-      </View>
-
-      {/* Dynamic Bar Chart */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', height: 100, alignItems: 'flex-end', paddingHorizontal: 6, marginBottom: 12 }}>
-        {days.map((day: any, i: number) => {
-          const totalMins = day?.total_minutes || 0;
-          const hours = totalMins / 60;
-          // Scale relative to 12 hours (720 minutes)
-          const barHeight = Math.max(Math.min((totalMins / 720) * 80, 80), 6);
-          const hasLog = day?.has_sleep_log;
-          const isGoalMet = day?.is_goal_met;
-
-          // Color selection
-          let barBgColor = theme.dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
-          if (hasLog) {
-            barBgColor = isGoalMet ? theme.colors.primary : '#FFB300';
-          }
-
-          return (
-            <View key={i} style={{ alignItems: 'center', width: 28 }}>
-              {hasLog && (
-                <Text style={{ color: isGoalMet ? theme.colors.primary : '#FFB300', fontSize: 10, fontWeight: '700', marginBottom: 4 }}>
-                  {hours.toFixed(1)}h
-                </Text>
-              )}
-              <View style={{ 
-                width: 16, 
-                height: barHeight, 
-                backgroundColor: barBgColor, 
-                borderRadius: 4,
-                marginBottom: 8
-              }} />
-              <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 10, fontWeight: '700' }}>
-                {day?.day_name_short || dayLabels[i]}
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 8, fontWeight: '800', letterSpacing: 0.5 }}>CONSISTENCIA</Text>
+              <Text style={{ color: '#4FC3F7', fontSize: 13, fontWeight: '900', fontFamily: 'SpaceMono', marginTop: 1 }}>
+                {insights.consistency_score}%
+              </Text>
+              <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 8 }} numberOfLines={1}>
+                {getConsistencyLabel(insights.consistency_score)}
               </Text>
             </View>
-          );
-        })}
-      </View>
-
-      {/* Divider */}
-      <View style={{ height: 1.5, backgroundColor: theme.dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', marginVertical: 16 }} />
-
-      {/* Insights Row */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-        {/* Consistencia */}
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', marginRight: 8 }}>
-          <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(79, 195, 247, 0.12)', justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
-            <MaterialCommunityIcons name="pulse" size={18} color="#4FC3F7" />
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 10, fontWeight: '700', letterSpacing: 0.5 }}>CONSISTENCIA</Text>
-            <Text style={{ color: '#4FC3F7', fontSize: 15, fontWeight: '800', marginTop: 1 }}>
-              {insights.consistency_score}%
-            </Text>
-            <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 10 }} numberOfLines={1}>
-              {getConsistencyLabel(insights.consistency_score)}
-            </Text>
+
+          {/* Mejor Calidad */}
+          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(255, 183, 77, 0.12)', justifyContent: 'center', alignItems: 'center' }}>
+              <MaterialCommunityIcons name="star-face" size={13} color="#FFB74D" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 8, fontWeight: '800', letterSpacing: 0.5 }}>MEJOR NOCHE</Text>
+              <Text style={{ color: '#FFB74D', fontSize: 13, fontWeight: '900', fontFamily: 'SpaceMono', marginTop: 1 }} numberOfLines={1}>
+                {insights.best_quality_day ? insights.best_quality_day.day_name_short : 'Sin datos'}
+              </Text>
+              <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 8 }} numberOfLines={1}>
+                {insights.best_quality_day ? `Calidad: ${insights.best_quality_day.quality_score}/5` : 'Sin registros'}
+              </Text>
+            </View>
           </View>
         </View>
-
-        {/* Mejor Calidad */}
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-          <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(255, 183, 77, 0.12)', justifyContent: 'center', alignItems: 'center', marginRight: 10 }}>
-            <MaterialCommunityIcons name="star-face" size={18} color="#FFB74D" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 10, fontWeight: '700', letterSpacing: 0.5 }}>MEJOR NOCHE</Text>
-            <Text style={{ color: '#FFB74D', fontSize: 15, fontWeight: '800', marginTop: 1 }} numberOfLines={1}>
-              {insights.best_quality_day ? insights.best_quality_day.day_name : 'Sin datos'}
-            </Text>
-            <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 10 }} numberOfLines={1}>
-              {insights.best_quality_day ? `Calidad: ${insights.best_quality_day.quality_score}/5` : 'Registra tu descanso'}
-            </Text>
-          </View>
-        </View>
-      </View>
-
-    </View>
+      </Card.Content>
+    </Card>
   );
 });
+
+
+
+
 
 
 
@@ -444,6 +384,28 @@ export default function DashboardScreen() {
   const [snackbar, setSnackbar] = useState({ visible: false, message: '' });
   const handleSnackbar = (message: string) => setSnackbar({ visible: true, message });
 
+  const syncAll = useShadowSyncStore((state) => state.syncAll);
+  const fetchAndMerge = useShadowSyncStore((state) => state.fetchAndMerge);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      // 1. Push any unsynced local data to the server
+      await syncAll();
+      // 2. Fetch recent records from the server and merge them
+      await fetchAndMerge(true);
+      // 3. Re-fetch sleep analytics
+      await refetchSleep();
+      handleSnackbar('¡Datos sincronizados!');
+    } catch (err) {
+      console.error('[Dashboard] Pull-to-refresh error:', err);
+      handleSnackbar('Sincronizado en modo local offline.');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [syncAll, fetchAndMerge, refetchSleep]);
+
   // ── Goals (from persisted profile or defaults) ─────────────────────────
   const waterGoal = profile?.water_goal || 2000;
   const calorieGoal = profile?.calorie_goal || 2000;
@@ -452,42 +414,9 @@ export default function DashboardScreen() {
   const fatsGoal = profile?.fats_goal || 70;
 
   // ── Derived values — stable via useMemo ─────────────────────────────────
-  // `today` is kept in state so that a timer can force a re-render at
-  // midnight, making Water/Nutrition/Sleep cards reset to the new day's
-  // (empty) values without requiring an app restart.
-  const [today, setToday] = useState(() => getLocalDateString());
-
-  useEffect(() => {
-    // 1. Timer to fire exactly at midnight
-    const scheduleNextMidnight = () => {
-      const now = new Date();
-      const midnight = new Date(now);
-      midnight.setHours(24, 0, 1, 0); // next day 00:00:01
-      const msUntilMidnight = midnight.getTime() - now.getTime();
-
-      return setTimeout(() => {
-        setToday(getLocalDateString());
-        timerRef = scheduleNextMidnight();
-      }, msUntilMidnight);
-    };
-
-    let timerRef = scheduleNextMidnight();
-
-    // 2. AppState listener — recalculate `today` when the app returns
-    //    from background (the midnight timer won't fire while suspended).
-    const handleAppState = (nextState: AppStateStatus) => {
-      if (nextState === 'active') {
-        const currentDate = getLocalDateString();
-        setToday((prev) => (prev !== currentDate ? currentDate : prev));
-      }
-    };
-    const appStateSub = AppState.addEventListener('change', handleAppState);
-
-    return () => {
-      clearTimeout(timerRef);
-      appStateSub.remove();
-    };
-  }, []);
+  // `today` is reactively synchronized from the global app date store
+  // so that when crossing midnight or waking the app, cards reset instantly.
+  const today = useAppDateStore((state) => state.currentLocalDate);
 
   const waterTotal = useMemo(
     () => waterLogs.filter((l) => isLocalDate(l.created_at, today)).reduce((s, l) => s + (Number(l.amount_ml) || 0), 0),
@@ -542,6 +471,47 @@ export default function DashboardScreen() {
   const sleptHours = Math.floor(totalSleepMins / 60);
   const sleptMins = totalSleepMins % 60;
 
+  const HPI = useMemo(() => {
+    // 1. Water Score (max 250 points)
+    const waterScore = Math.min((waterGoal > 0 ? waterTotal / waterGoal : 0) * 250, 250);
+
+    // 2. Nutrition Score (max 250 points)
+    // Calorie score (max 125): penalty for deviation
+    const calDiff = Math.abs(nutritionTotals.calories - calorieGoal);
+    const calorieScore = calorieGoal > 0 ? Math.max(0, 125 * (1 - (calDiff / calorieGoal))) : 0;
+    // Protein score (max 125)
+    const proteinScore = proteinGoal > 0 ? Math.min((nutritionTotals.protein / proteinGoal) * 125, 125) : 0;
+    const nutritionScore = calorieScore + proteinScore;
+
+    // 3. Sleep Score (max 250 points)
+    const sleepGoal = 480; // 8 hours
+    const sleepDurationPct = Math.min(totalSleepMins / sleepGoal, 1);
+    const sleepDurationScore = sleepDurationPct * 150;
+    const sleepQualityScore = todaySleep?.quality_score ? (todaySleep.quality_score / 5) * 100 : 0;
+    const sleepScore = sleepDurationScore + sleepQualityScore;
+
+    // 4. Workout Score (max 250 points)
+    const workoutScore = workoutCount > 0 ? 250 : 0;
+
+    return Math.round(waterScore + nutritionScore + sleepScore + workoutScore);
+  }, [waterTotal, waterGoal, nutritionTotals, calorieGoal, proteinGoal, totalSleepMins, todaySleep, workoutCount]);
+
+  const hpiInsight = useMemo(() => {
+    if (waterProgress < 0.6) {
+      return "💧 Hidratación crítica. Un 2% de deshidratación reduce tu fuerza física hasta un 15% mañana.";
+    }
+    if (sleptHours > 0 && sleptHours < 6.5) {
+      return "😴 Descanso deficiente. Menos de 7h de sueño reduce la testosterona libre y eleva el cortisol.";
+    }
+    if (proteinPct < 0.6) {
+      return "🍎 Proteína insuficiente. Tus músculos necesitan aminoácidos para recuperarse y evitar catabolismo.";
+    }
+    if (workoutCount > 0) {
+      return "🏋️ ¡Estás en la zona! Tu sesión de hoy estimuló la síntesis de proteína. ¡Buen trabajo!";
+    }
+    return "🔥 Estado óptimo. Si completas tus metas de hoy, estarás en tu mejor momento de rendimiento.";
+  }, [waterProgress, sleptHours, proteinPct, workoutCount]);
+
   const firstName = capitalizeName(profile?.full_name).split(' ')[0] || 'Campeón';
 
   return (
@@ -549,63 +519,184 @@ export default function DashboardScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+          />
+        }
       >
-        {/* ── Greeting ───────────────────────────────────────────── */}
-        <View style={styles.greetingSection}>
-          <FadeIn>
-            <Text
-              variant="headlineMedium"
-              style={[styles.greeting, { color: theme.colors.onBackground }]}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-            >
+        {/* ── Control Panel Header ── */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <View style={{ flex: 1, marginRight: 16 }}>
+            <Text variant="headlineMedium" style={{ fontWeight: '900', color: theme.colors.onBackground, fontSize: 26, letterSpacing: -0.5 }}>
               Hola, {firstName}
             </Text>
-            <Text variant="titleMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-              Hoy, {new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long' }).replace(' de ', ' de ')}
+            <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12, fontWeight: '600', marginTop: 2, textTransform: 'capitalize' }}>
+              Hoy, {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' }).replace('.', '')}
             </Text>
-          </FadeIn>
+          </View>
+          
+          {/* Glowing HPI Indicator */}
+          <TouchableOpacity 
+            onPress={() => setModalVisible('glossary')}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: theme.dark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              borderRadius: 14,
+              borderWidth: 1.5,
+              borderColor: getHpiColor(HPI, theme),
+              gap: 8
+            }}
+          >
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={{ fontSize: 8, fontWeight: '800', color: theme.colors.onSurfaceVariant, letterSpacing: 0.5 }}>INDICE HPI</Text>
+              <Text style={{ fontSize: 15, fontWeight: '900', color: theme.colors.onSurface, fontFamily: 'SpaceMono' }}>{HPI}</Text>
+            </View>
+            <View style={{ width: 32, height: 32, borderRadius: 16, borderWidth: 2.5, borderColor: getHpiColor(HPI, theme), justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.1)' }}>
+              <Text style={{ fontSize: 10, fontWeight: '900', color: getHpiColor(HPI, theme) }}>{Math.round(HPI / 100)}</Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
-        {/* ── Grid (renders immediately — no skeletons) ──────────── */}
+        {/* ── AI Coach Telemetry Insight Capsule ── */}
+        <View style={{ 
+          backgroundColor: theme.dark ? 'rgba(204, 255, 0, 0.05)' : 'rgba(204, 255, 0, 0.03)',
+          borderColor: 'rgba(204, 255, 0, 0.12)',
+          borderWidth: 1,
+          borderRadius: 14,
+          paddingHorizontal: 12,
+          paddingVertical: 8,
+          marginBottom: 16,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 8
+        }}>
+          <MaterialCommunityIcons name="brain" size={16} color={theme.colors.primary} />
+          <Text style={{ color: theme.colors.onSurface, fontSize: 11, fontWeight: '600', flex: 1, lineHeight: 15 }}>
+            {hpiInsight}
+          </Text>
+        </View>
+
+        {/* ── 2x2 Daily Core Pillars Grid ── */}
         <FadeIn>
-          {/* Row 1: Agua + Nutrición */}
-          <View style={styles.gridRow}>
-            <CircularProgressCard
+          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
+            <PillarGridCard
               title="Agua"
-              subtitle={waterLabel}
+              subtitle={"de " + waterGoal + " ml"}
               icon="water"
+              valueText={`${waterTotal} ml`}
               progress={waterProgress}
-              style={styles.halfCard}
+              color={theme.colors.primary}
+              onPress={() => setModalVisible('water')}
             />
-            <NutritionCard
+            <PillarGridCard
               title="Nutrición"
-              subtitle={nutritionLabel}
+              subtitle={"de " + calorieGoal + " kcal"}
               icon="food-apple"
+              valueText={`${nutritionTotals.calories} kcal`}
               progress={nutritionProgress}
-              proteinPct={proteinPct}
-              carbsPct={carbsPct}
-              fatsPct={fatsPct}
-              proteinGoal={proteinGoal}
-              carbsGoal={carbsGoal}
-              fatsGoal={fatsGoal}
-              proteinTotal={nutritionTotals.protein}
-              carbsTotal={nutritionTotals.carbs}
-              fatsTotal={nutritionTotals.fats}
-              style={styles.halfCard}
+              color="#FFB74D"
+              onPress={() => setModalVisible('nutrition')}
             />
           </View>
 
-          {/* Row 2: Entrenamiento */}
-          <WorkoutStatusCard
-            title="Entrenamiento"
-            currentSession={workoutLabel}
-            duration={`${workoutDuration} mins`}
-            status={workoutStatus}
-            onPress={() => router.push('/(tabs)/workout')}
-          />
+          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
+            <PillarGridCard
+              title="Entreno"
+              subtitle={workoutCount > 0 ? "Completado" : "Pendiente"}
+              icon="dumbbell"
+              valueText={workoutCount > 0 ? `${workoutCount} Sesión` : "Pendiente"}
+              progress={workoutCount > 0 ? 1 : 0}
+              color="#4FC3F7"
+              onPress={() => router.push('/(tabs)/workout')}
+            />
+            <PillarGridCard
+              title="Sueño"
+              subtitle={todaySleep?.quality_score ? `Calidad: ${todaySleep.quality_score}/5` : "Sin registrar"}
+              icon="bed"
+              valueText={todaySleep ? `${sleptHours}h ${sleptMins}m` : "Pendiente"}
+              progress={todaySleep ? Math.min(totalSleepMins / 480, 1) : 0}
+              color="#EF5350"
+              onPress={() => setModalVisible('sleep')}
+            />
+          </View>
 
-          {/* Row 3: Sueño */}
+          {/* ── Macros Breakdown Bar ── */}
+          <Card style={{
+            backgroundColor: theme.dark ? '#1c1c1e' : theme.colors.surface,
+            borderColor: 'rgba(255,255,255,0.12)',
+            borderWidth: 1.5,
+            borderRadius: 18,
+            marginBottom: 16,
+            elevation: 0,
+          }}>
+            <Card.Content style={{ padding: 12 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 9, fontWeight: '800' }}>PROTEÍNA</Text>
+                    <Text style={{ color: '#4FC3F7', fontSize: 9, fontWeight: '800' }}>{nutritionTotals.protein}/{proteinGoal}g</Text>
+                  </View>
+                  <View style={{ height: 4, borderRadius: 2, backgroundColor: theme.dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}>
+                    <View style={{ height: 4, borderRadius: 2, backgroundColor: '#4FC3F7', width: `${Math.min(proteinPct * 100, 100)}%` }} />
+                  </View>
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 9, fontWeight: '800' }}>CARBOS</Text>
+                    <Text style={{ color: '#FFB74D', fontSize: 9, fontWeight: '800' }}>{nutritionTotals.carbs}/{carbsGoal}g</Text>
+                  </View>
+                  <View style={{ height: 4, borderRadius: 2, backgroundColor: theme.dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}>
+                    <View style={{ height: 4, borderRadius: 2, backgroundColor: '#FFB74D', width: `${Math.min(carbsPct * 100, 100)}%` }} />
+                  </View>
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 9, fontWeight: '800' }}>GRASAS</Text>
+                    <Text style={{ color: '#EF5350', fontSize: 9, fontWeight: '800' }}>{nutritionTotals.fats}/{fatsGoal}g</Text>
+                  </View>
+                  <View style={{ height: 4, borderRadius: 2, backgroundColor: theme.dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }}>
+                    <View style={{ height: 4, borderRadius: 2, backgroundColor: '#EF5350', width: `${Math.min(fatsPct * 100, 100)}%` }} />
+                  </View>
+                </View>
+              </View>
+            </Card.Content>
+          </Card>
+
+          {/* ── Active Workout Neon Call-To-Action Banner ── */}
+          {workoutCount === 0 && (
+            <Card 
+              onPress={() => router.push('/(tabs)/workout/live')}
+              style={{
+                backgroundColor: theme.colors.primary,
+                borderRadius: 18,
+                marginBottom: 16,
+                elevation: 0,
+                overflow: 'hidden'
+              }}
+            >
+              <Card.Content style={{ paddingVertical: 12, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <MaterialCommunityIcons name="lightning-bolt" size={20} color="#000000" />
+                  <View>
+                    <Text style={{ color: '#000000', fontWeight: '900', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 }}>Entrenamiento en Vivo</Text>
+                    <Text style={{ color: 'rgba(0,0,0,0.6)', fontSize: 10, fontWeight: '600' }}>Inicia el cronómetro táctil para tu sesión de hoy</Text>
+                  </View>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={20} color="#000000" />
+              </Card.Content>
+            </Card>
+          )}
+
+          {/* ── Sleep Analytics (Weekly Chart) ── */}
           <SleepChartCard
             title="Análisis de Sueño"
             analytics={sleepAnalytics || mockSleepAnalytics}
@@ -632,6 +723,10 @@ export default function DashboardScreen() {
           handleSnackbar('¡Sueño registrado!');
           refetchSleep();
         }}
+      />
+      <GlossaryModal
+        visible={modalVisible === 'glossary'}
+        onDismiss={() => setModalVisible('none')}
       />
 
       <CustomToast

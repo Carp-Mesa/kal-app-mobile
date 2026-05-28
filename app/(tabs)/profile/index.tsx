@@ -22,6 +22,10 @@ import {
   useTheme
 } from 'react-native-paper';
 import { CustomToast } from '@/src/components/CustomToast';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { GlossaryModal } from '@/src/components/modals/GlossaryModal';
+
+
 
 type TabType = 'Info Personal' | 'Metas' | 'Ajustes';
 
@@ -64,15 +68,16 @@ const FilterTabs = ({ selected, onSelect, theme }: any) => {
 
 export default function ProfileScreen() {
   const theme = useTheme();
-  const { themeMode, toggleTheme, resetOnboarding } = useAppStore();
+  const themeMode = useAppStore((state) => state.themeMode);
+  const toggleTheme = useAppStore((state) => state.toggleTheme);
   const profile = useProfileStore((state) => state.profile);
   const _hasHydrated = useProfileStore((state) => state._hasHydrated);
   const updateProfileStore = useProfileStore((state) => state.updateProfile);
   const clearTokens = useAuthStore(state => state.clearTokens);
-  const isInitialized = useRef(false);
 
   const [activeTab, setActiveTab] = useState<TabType>('Info Personal');
   const [snackbar, setSnackbar] = useState({ visible: false, message: '' });
+  const [glossaryVisible, setGlossaryVisible] = useState(false);
 
   // ─── Edit modes ────────────────────────────────────────────────────────────
   const [editingFicha, setEditingFicha] = useState(false);
@@ -103,7 +108,7 @@ export default function ProfileScreen() {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (profile && !isInitialized.current) {
+    if (profile && !editingFicha && !editingMetas) {
       setFullName(capitalizeName(profile.full_name) ?? '');
       setAge(profile.age?.toString() ?? '');
       setHeight(profile.height?.toString() ?? '');
@@ -120,9 +125,8 @@ export default function ProfileScreen() {
         setFatsGoal(profile.fats_goal?.toString() ?? '');
         setAutoCalculateMacros(false);
       }
-      isInitialized.current = true;
     }
-  }, [profile]);
+  }, [profile, editingFicha, editingMetas]);
 
   // Autocalculate macros when calories change and autoCalc is ON
   useEffect(() => {
@@ -509,22 +513,31 @@ export default function ProfileScreen() {
               />
             </View>
 
-            <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.05)', marginBottom: 20 }} />
-
-            <TouchableOpacity
-              onPress={() => {
-                resetOnboarding();
-                router.replace('/(onboarding)/screen');
+            <TouchableOpacity 
+              onPress={() => setGlossaryVisible(true)} 
+              style={{ 
+                flexDirection: 'row', 
+                alignItems: 'center', 
+                paddingVertical: 14, 
+                paddingHorizontal: 16, 
+                backgroundColor: theme.dark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', 
+                borderColor: 'rgba(255,255,255,0.12)', 
+                borderWidth: 1.5, 
+                borderRadius: 12, 
+                marginBottom: 16,
+                gap: 12
               }}
-              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, marginBottom: 8 }}
             >
-              <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 13, fontWeight: '600' }}>
-                Ver introducción
-              </Text>
+              <MaterialCommunityIcons name="book-open-outline" size={20} color={theme.colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: theme.colors.onSurface, fontSize: 14, fontWeight: '700' }}>Diccionario Científico</Text>
+                <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 10, marginTop: 1 }}>Aprende la ciencia de tus métricas</Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={theme.colors.onSurfaceVariant} />
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={handleLogout} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10 }}>
-              <Text style={{ color: '#FF3B30', fontSize: 15, fontWeight: '700' }}>Cerrar Sesión</Text>
+            <TouchableOpacity onPress={handleLogout} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, backgroundColor: 'rgba(255, 59, 48, 0.08)', borderRadius: 12, marginTop: 10 }}>
+              <Text style={{ color: '#FF3B30', fontSize: 14, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>Cerrar Sesión</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -534,6 +547,10 @@ export default function ProfileScreen() {
         visible={snackbar.visible}
         message={snackbar.message}
         onDismiss={() => setSnackbar({ ...snackbar, visible: false })}
+      />
+      <GlossaryModal
+        visible={glossaryVisible}
+        onDismiss={() => setGlossaryVisible(false)}
       />
     </KeyboardAvoidingView>
   );
